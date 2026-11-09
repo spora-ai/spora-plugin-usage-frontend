@@ -39,7 +39,7 @@ spora-plugin-usage-frontend-v<VERSION>.tar.gz
 
 **Nothing else ships in the archive** — no source files, no `package.json`, no `node_modules`, no build configs. The release tarball is built explicitly from `frontend/` in the `build-and-release` workflow, and the `Verify only frontend/ is shipped` step in the same workflow fails the build if any non-`frontend/` path slips into the archive (deny-list + allow-list assertions).
 
-The installer in `spora-ai/installer` (any 1.x release) unpacks this tarball into `public/plugins/usage/` on the operator's host, so the host SPA's dynamic `import('/plugins/usage/main.js')` (per `registry.ts → mountPlugin`) finds the IIFE bundle at the path it expects. `style.css` is **required**: `src/App.vue` imports the stylesheet, so the build always emits it, and `npm run smoke` reads the file — the check fails when it is absent.
+The installer in `spora-ai/installer` (**v1.4.0 or newer**) unpacks this tarball into `public/plugins/usage/` on the operator's host, so the host SPA's dynamic `import('/plugins/usage/main.js')` (per `registry.ts → mountPlugin`) finds the IIFE bundle at the path it expects. v1.4.0 is the floor because it is the release that reads `extra.spora-plugin-slug`; before it the installer derived the directory from the package name, so the bundle would land in `public/plugins/spora-plugin-usage-frontend/` and the host SPA would not find it. `style.css` is **required**: `src/App.vue` imports the stylesheet, so the build always emits it, and `npm run smoke` reads the file — the check fails when it is absent.
 
 The versioned root is **load-bearing** — see "Why a versioned root directory" below.
 

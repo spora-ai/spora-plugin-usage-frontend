@@ -1,6 +1,6 @@
 # spora-plugin-usage-frontend
 
-Pre-built Vue SPA for the Spora **Usage** app. Delivered as a Composer package of type `spora-plugin-frontend`; `spora-installer`'s `SporaPluginFrontendInstaller` copies this repo's `frontend/` directory into `public/plugins/usage/` so the host SPA can lazy-load it via `/plugins/usage/main.js`. The directory name comes from this package's `composer.json#extra.spora-plugin-slug` (`usage`), which must equal the parent plugin's `plugin.json#slug` — there is no fallback to the package name.
+Pre-built Vue SPA for the Spora **Usage** app. Delivered as a Composer package of type `spora-plugin-frontend`; `spora-installer`'s `SporaPluginFrontendInstaller` copies this repo's `frontend/` directory into `public/plugins/usage/` so the host SPA can lazy-load it via `/plugins/usage/main.js`. The directory name comes from this package's `composer.json#extra.spora-plugin-slug` (`usage`), which must equal the parent plugin's `plugin.json#slug` — there is no fallback to the package name, which is why the installer must be **v1.4.0 or newer**: that is the release that reads the slug, and before it the bundle landed in a directory the host SPA does not look in.
 
 ## Why a separate repo from the PHP plugin?
 
