@@ -1,0 +1,50 @@
+{
+  "name": "spora-ai/spora-plugin-usage-frontend",
+  "description": "Pre-built Vue SPA for the Spora Usage app — usage metering, credits and limits. Delivered as type `spora-plugin-frontend`; the host SPA lazy-loads it via /plugins/usage/main.js (the parent plugin's `plugin.json#slug`, not this package's name).",
+  "type": "spora-plugin-frontend",
+  "license": "MIT",
+  "require": {
+    "php": "^8.4.1"
+  },
+  "dist": {
+    "url": "https://github.com/spora-ai/spora-plugin-usage-frontend/releases/download/v0.1.0/spora-plugin-usage-frontend-v0.1.0.tar.gz",
+    "type": "tar"
+  },
+  "extra": {
+    "_comment": "Must equal plugin.json#slug in spora-plugin-usage; SporaPluginFrontendInstaller refuses to install when missing.",
+    "spora-plugin-slug": "usage"
+  },
+  "archive": {
+    "exclude": [
+      "/.github",
+      "/node_modules",
+      "/src",
+      "/tests",
+      "/coverage",
+      "/scripts",
+      "/.git",
+      "/.gitkeep",
+      "/.gitignore",
+      "/.DS_Store",
+      "/package-lock.json",
+      "/package.json",
+      "/eslint.config.js",
+      "/postcss.config.js",
+      "/tailwind.config.ts",
+      "/tsconfig.json",
+      "/vite.config.ts",
+      "/index.html",
+      "/sonar-project.properties",
+      "/RELEASING.md",
+      "/README.md",
+      "/LICENSE"
+    ]
+  },
+  "config": {
+    "allow-plugins": {
+      "spora-ai/installer": true
+    }
+  },
+  "minimum-stability": "stable",
+  "prefer-stable": true
+}
