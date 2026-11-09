@@ -82,7 +82,16 @@ function setWindowSize(event: Event): void {
         :data-testid="`usage-limit-editor-${index}`"
     >
         <td class="py-2 pr-2">
+            <!-- The column header is the visible caption; the label repeats
+                 those words for a screen reader, so it stays out of the layout. -->
+            <label
+                class="sr-only"
+                :for="`usage-limit-window-${index}`"
+            >
+                {{ t('Window') }}
+            </label>
             <select
+                :id="`usage-limit-window-${index}`"
                 class="w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
                 :value="draft.window"
                 :data-testid="`usage-limit-window-${index}`"
@@ -96,8 +105,16 @@ function setWindowSize(event: Event): void {
                     {{ labels.windowLabel[option] }}
                 </option>
             </select>
+            <label
+                v-if="draft.window === 'rolling'"
+                class="sr-only"
+                :for="`usage-limit-window-size-${index}`"
+            >
+                {{ t('Window size') }}
+            </label>
             <input
                 v-if="draft.window === 'rolling'"
+                :id="`usage-limit-window-size-${index}`"
                 type="number"
                 min="1"
                 class="mt-1 w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
@@ -107,7 +124,14 @@ function setWindowSize(event: Event): void {
             >
         </td>
         <td class="py-2 pr-2">
+            <label
+                class="sr-only"
+                :for="`usage-limit-unit-${index}`"
+            >
+                {{ t('Unit') }}
+            </label>
             <select
+                :id="`usage-limit-unit-${index}`"
                 class="w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
                 :value="draft.unit"
                 :data-testid="`usage-limit-unit-${index}`"
@@ -123,7 +147,14 @@ function setWindowSize(event: Event): void {
             </select>
         </td>
         <td class="py-2 pr-2">
+            <label
+                class="sr-only"
+                :for="`usage-limit-cap-${index}`"
+            >
+                {{ t('Limit') }}
+            </label>
             <input
+                :id="`usage-limit-cap-${index}`"
                 type="number"
                 min="0"
                 step="any"
@@ -134,7 +165,14 @@ function setWindowSize(event: Event): void {
             >
         </td>
         <td class="py-2 pr-2">
+            <label
+                class="sr-only"
+                :for="`usage-limit-mode-${index}`"
+            >
+                {{ t('Mode') }}
+            </label>
             <select
+                :id="`usage-limit-mode-${index}`"
                 class="w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
                 :value="draft.mode"
                 :data-testid="`usage-limit-mode-${index}`"

@@ -94,6 +94,9 @@ onMounted(() => {
                     </tr>
                 </thead>
                 <tbody>
+                    <!-- The row's click needs a keyboard equivalent. The name
+                         button is the focusable control, and the keydown
+                         bubbles up from it to the row. -->
                     <tr
                         v-for="principal in principals"
                         :key="principal.id"
@@ -101,6 +104,8 @@ onMounted(() => {
                         :class="principal.id === store.selectedPrincipalId ? 'bg-muted/60' : ''"
                         :data-testid="`usage-principal-row-${principal.id}`"
                         @click="select(principal.id)"
+                        @keydown.enter="select(principal.id)"
+                        @keydown.space="select(principal.id)"
                     >
                         <td class="py-2 pr-3">
                             <button

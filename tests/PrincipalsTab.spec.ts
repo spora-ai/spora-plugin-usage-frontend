@@ -50,6 +50,15 @@ describe('PrincipalsTab', () => {
         expect(useUsageStore().selectedPrincipalId).toBe(34)
     })
 
+    it('picks a principal from the keyboard as well', async () => {
+        const { wrapper } = mountTab()
+        await flushPromises()
+        await flushPromises()
+        await wrapper.find('[data-testid="usage-principal-select-34"]').trigger('keydown', { key: 'Enter' })
+        await flushPromises()
+        expect(useUsageStore().selectedPrincipalId).toBe(34)
+    })
+
     it('marks the caller as not an admin when the API refuses the listing', async () => {
         const { wrapper } = mountTab({
             get: {

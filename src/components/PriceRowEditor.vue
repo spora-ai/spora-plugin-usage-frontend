@@ -55,7 +55,16 @@ function setPrice(field: 'input_price' | 'output_price' | 'cached_price' | 'call
         :data-testid="`usage-price-editor-${index}`"
     >
         <td class="py-2 pr-2">
+            <!-- The column header is the visible caption; the label repeats
+                 those words for a screen reader, so it stays out of the layout. -->
+            <label
+                class="sr-only"
+                :for="`usage-price-kind-${index}`"
+            >
+                {{ t('Kind') }}
+            </label>
             <select
+                :id="`usage-price-kind-${index}`"
                 class="w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
                 :value="draft.kind"
                 :data-testid="`usage-price-kind-${index}`"
@@ -71,7 +80,14 @@ function setPrice(field: 'input_price' | 'output_price' | 'cached_price' | 'call
             </select>
         </td>
         <td class="py-2 pr-2">
+            <label
+                class="sr-only"
+                :for="`usage-price-provider-${index}`"
+            >
+                {{ t('Provider') }}
+            </label>
             <input
+                :id="`usage-price-provider-${index}`"
                 type="text"
                 class="w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
                 :value="draft.provider"
@@ -81,7 +97,14 @@ function setPrice(field: 'input_price' | 'output_price' | 'cached_price' | 'call
             >
         </td>
         <td class="py-2 pr-2">
+            <label
+                class="sr-only"
+                :for="`usage-price-key-${index}`"
+            >
+                {{ t('Key') }}
+            </label>
             <input
+                :id="`usage-price-key-${index}`"
                 type="text"
                 class="w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
                 :value="draft.key"
@@ -90,8 +113,16 @@ function setPrice(field: 'input_price' | 'output_price' | 'cached_price' | 'call
             >
         </td>
         <td class="py-2 pr-2">
+            <label
+                v-if="draft.kind === 'tool'"
+                class="sr-only"
+                :for="`usage-price-operation-${index}`"
+            >
+                {{ t('Operation') }}
+            </label>
             <input
                 v-if="draft.kind === 'tool'"
+                :id="`usage-price-operation-${index}`"
                 type="text"
                 class="w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
                 :value="draft.operation"
@@ -105,7 +136,14 @@ function setPrice(field: 'input_price' | 'output_price' | 'cached_price' | 'call
             class="py-2 pr-2 text-right"
             :title="t('{value} credits per input token', { value: formatExactPrice(draft.input_price, locale) })"
         >
+            <label
+                class="sr-only"
+                :for="`usage-price-input-${index}`"
+            >
+                {{ t('Input') }}
+            </label>
             <input
+                :id="`usage-price-input-${index}`"
                 type="number"
                 min="0"
                 step="any"
@@ -125,7 +163,14 @@ function setPrice(field: 'input_price' | 'output_price' | 'cached_price' | 'call
             class="py-2 pr-2 text-right"
             :title="t('{value} credits per output token', { value: formatExactPrice(draft.output_price, locale) })"
         >
+            <label
+                class="sr-only"
+                :for="`usage-price-output-${index}`"
+            >
+                {{ t('Output') }}
+            </label>
             <input
+                :id="`usage-price-output-${index}`"
                 type="number"
                 min="0"
                 step="any"
@@ -142,7 +187,14 @@ function setPrice(field: 'input_price' | 'output_price' | 'cached_price' | 'call
             class="py-2 pr-2 text-right"
             :title="t('{value} credits per cached input token', { value: formatExactPrice(draft.cached_price, locale) })"
         >
+            <label
+                class="sr-only"
+                :for="`usage-price-cached-${index}`"
+            >
+                {{ t('Cached') }}
+            </label>
             <input
+                :id="`usage-price-cached-${index}`"
                 type="number"
                 min="0"
                 step="any"
@@ -159,8 +211,16 @@ function setPrice(field: 'input_price' | 'output_price' | 'cached_price' | 'call
             class="py-2 pr-2 text-right"
             :title="t('{value} credits per call', { value: formatExactPrice(draft.call_price, locale) })"
         >
+            <label
+                v-if="draft.kind === 'tool'"
+                class="sr-only"
+                :for="`usage-price-call-${index}`"
+            >
+                {{ t('Per call') }}
+            </label>
             <input
                 v-if="draft.kind === 'tool'"
+                :id="`usage-price-call-${index}`"
                 type="number"
                 min="0"
                 step="any"

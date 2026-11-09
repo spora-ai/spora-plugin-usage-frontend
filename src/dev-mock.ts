@@ -99,7 +99,7 @@ export const PRICE_FIXTURE: UsagePrice[] = [
     {
         kind: 'tool',
         provider: '',
-        key: 'Spora\\Tools\\MediaTool',
+        key: String.raw`Spora\Tools\MediaTool`,
         operation: 'render',
         input_price: 0,
         output_price: 0,
@@ -110,7 +110,7 @@ export const PRICE_FIXTURE: UsagePrice[] = [
 
 export const UNPRICED_FIXTURE: UsageUnpriced = {
     models: [{ provider: 'openai_compatible', model: 'internal-preview', calls: 12 }],
-    tools: [{ tool_class: 'Spora\\Tools\\WeatherTool', tool_name: 'weather', calls: 4 }],
+    tools: [{ tool_class: String.raw`Spora\Tools\WeatherTool`, tool_name: 'weather', calls: 4 }],
 }
 
 /**
@@ -120,8 +120,16 @@ export const UNPRICED_FIXTURE: UsageUnpriced = {
  * would make the chart look like it stopped moving.
  */
 function seriesFixture(window: SeriesWindow): UsageSeries {
-    const count = window === 'day' ? 24 : window === 'week' ? 7 : 30
-    const stepMs = window === 'day' ? 3600_000 : window === 'week' ? 86400_000 : 86400_000
+    // A week and a month are both daily buckets, so only the day window
+    // steps by the hour.
+    let count = 30
+    let stepMs = 86_400_000
+    if (window === 'day') {
+        count = 24
+        stepMs = 3_600_000
+    } else if (window === 'week') {
+        count = 7
+    }
     const now = Date.now()
     const points = []
     for (let index = 0; index < count; index++) {

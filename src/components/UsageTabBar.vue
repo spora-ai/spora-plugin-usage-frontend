@@ -26,10 +26,12 @@ const tabs = computed<{ id: UsageTab; label: string }[]>(() => {
     if (!props.isAdmin) {
         return visible
     }
-    visible.push({ id: 'principals', label: t('Principals') })
-    visible.push({ id: 'limits', label: t('Limits') })
-    visible.push({ id: 'budget', label: t('Budget') })
-    visible.push({ id: 'prices', label: t('Prices') })
+    visible.push(
+        { id: 'principals', label: t('Principals') },
+        { id: 'limits', label: t('Limits') },
+        { id: 'budget', label: t('Budget') },
+        { id: 'prices', label: t('Prices') },
+    )
     return visible
 })
 </script>

@@ -73,26 +73,33 @@ watch(seriesWindow, () => {
         <section class="flex flex-col gap-3">
             <div class="flex flex-wrap items-center justify-between gap-2">
                 <h3 class="text-sm font-semibold">{{ t('Spend over time') }}</h3>
-                <div
-                    class="flex items-center gap-1 rounded-lg border border-border p-0.5"
-                    role="group"
-                    :aria-label="t('Spend window')"
+                <!-- The fieldset names the group. The box stays on the inner
+                     div: a fieldset brings the browser's own border and
+                     padding, and this bundle ships no preflight to reset
+                     them. -->
+                <fieldset
+                    class="m-0 min-w-0 border-0 p-0"
                     data-testid="usage-series-window"
                 >
-                    <button
-                        v-for="option in windows"
-                        :key="option"
-                        type="button"
-                        class="rounded-md px-2.5 py-1 text-xs font-medium transition-colors"
-                        :class="option === seriesWindow
-                            ? 'bg-muted text-foreground'
-                            : 'text-muted-foreground hover:text-foreground'"
-                        :data-testid="`usage-series-window-${option}`"
-                        @click="seriesWindow = option"
-                    >
-                        {{ labels.windowLabel[option] }}
-                    </button>
-                </div>
+                    <legend class="sr-only">
+                        {{ t('Spend window') }}
+                    </legend>
+                    <div class="flex items-center gap-1 rounded-lg border border-border p-0.5">
+                        <button
+                            v-for="option in windows"
+                            :key="option"
+                            type="button"
+                            class="rounded-md px-2.5 py-1 text-xs font-medium transition-colors"
+                            :class="option === seriesWindow
+                                ? 'bg-muted text-foreground'
+                                : 'text-muted-foreground hover:text-foreground'"
+                            :data-testid="`usage-series-window-${option}`"
+                            @click="seriesWindow = option"
+                        >
+                            {{ labels.windowLabel[option] }}
+                        </button>
+                    </div>
+                </fieldset>
             </div>
             <div
                 v-if="seriesLoading"
