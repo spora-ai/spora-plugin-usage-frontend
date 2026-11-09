@@ -20,6 +20,7 @@ import App from './App.vue'
 import type { PluginHostContext } from './shims'
 import { createMockApi } from './dev-mock'
 import { createPluginI18n } from './i18n'
+import { nextIdPrefix } from './lib/ids'
 
 // One-line banner so the developer knows they're in sandbox mode and
 // doesn't waste time wondering why their real backend isn't responding.
@@ -55,7 +56,7 @@ const hostContext: PluginHostContext = {
 
 const target = document.getElementById('app')
 if (target) {
-    const app = createApp(App, { hostContext })
+    const app = createApp(App, { hostContext, idPrefix: nextIdPrefix() })
     app.use(createPinia())
     app.use(createPluginI18n(locale))
     app.config.globalProperties.$host = hostContext

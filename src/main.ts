@@ -3,6 +3,7 @@ import { createPinia } from 'pinia'
 import App from './App.vue'
 import type { PluginHostContext } from './shims'
 import { createPluginI18n } from './i18n'
+import { nextIdPrefix } from './lib/ids'
 
 /**
  * The plugin mount contract.
@@ -21,7 +22,10 @@ import { createPluginI18n } from './i18n'
  */
 const SporaApp = {
     mount(target: HTMLElement, hostContext: PluginHostContext): void {
-        const app = createApp(App, { hostContext })
+        // Each mount gets its own id namespace: the host may mount this
+        // bundle into more than one slot, and the panel's labels point at
+        // control ids.
+        const app = createApp(App, { hostContext, idPrefix: nextIdPrefix() })
         const localPinia = createPinia()
         app.use(localPinia)
         // The plugin owns its catalogue, so it builds its own instance —

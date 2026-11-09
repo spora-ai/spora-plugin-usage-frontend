@@ -67,7 +67,7 @@ The build writes into `frontend/`, which is what the installer copies. `npm run 
 npm run dev
 ```
 
-The sandbox at `index.html` mounts the app against an in-memory mock (`src/dev-mock.ts`), so the tabs work without the PHP plugin installed. `?admin=1` in the URL turns the admin flag on, which shows the admin tabs.
+The sandbox at `index.html` mounts the app against an in-memory mock (`src/dev-mock.ts`), so the tabs work without the PHP plugin installed. The sandbox shows the **admin** view by default; `?admin=0` in the URL turns the admin flag off, which shows the non-admin view.
 
 Against a host checkout, the host SPA proxies `/plugins/usage` to this server: start it with `SPORA_PLUGIN_DEV_PORTS=usage:5196 npm run dev` on the host. The proxy is not hard-coded — see [the local-development guide](https://docs.spora-ai.com/develop/plugins/local-development.html).
 
@@ -82,6 +82,8 @@ Against a host checkout, the host SPA proxies `/plugins/usage` to this server: s
 The IIFE wrapper installs this on `window.SporaAppUsage`; the host's `apps/registry.ts` reads `window.SporaAppUsage.mount` and `unmount` and calls them when `/apps/usage` is mounted and unmounted.
 
 The plugin installs a **local** Pinia for its own state — the open tab and the selected principal — so nothing lands in the host's stores. The host's own services (auth) are reached through the Pinia instance the host passes in `hostContext.pinia`.
+
+**The host's auth store is read from a private field.** `src/lib/host-auth.ts` reads `pinia._s`, Pinia's internal store map, because the plugin cannot import the host's `useAuthStore` (separate bundles) and the host publishes no module for it. The host creates its auth store before it mounts the router — and so before any plugin mounts — so the store is there when the plugin asks; if it is not, the panel reads the caller as a non-admin and the admin tabs simply do not appear. The sibling `spora-plugin-social-frontend` reads the host's theme store the same way, so this is the family's established pattern; what would replace it is a host change that publishes the user on the plugin host context.
 
 ## License
 

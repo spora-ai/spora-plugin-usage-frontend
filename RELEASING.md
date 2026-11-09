@@ -27,19 +27,19 @@ This package is published on Packagist as `spora-ai/spora-plugin-usage-frontend`
 
 ## Release artifact shape
 
-The GitHub Release asset (`spora-plugin-usage-frontend-v<VERSION>.tar.gz`) contains **the `frontend/` directory verbatim** (the Vite IIFE bundle output — `main.js` and optionally `style.css`), under a single versioned root directory that matches the tag:
+The GitHub Release asset (`spora-plugin-usage-frontend-v<VERSION>.tar.gz`) contains **the `frontend/` directory verbatim** (the Vite IIFE bundle output — `main.js` and `style.css`), under a single versioned root directory that matches the tag:
 
 ```
 spora-plugin-usage-frontend-v<VERSION>.tar.gz
 └── spora-plugin-usage-frontend-v<VERSION>/     # versioned root — required by PHP's PharData
     └── frontend/                                        # preserved as a subdir so the installer can find it
         ├── main.js                                      # the IIFE bundle (window.SporaAppUsage = ...)
-        └── style.css                                    # Tailwind-compiled CSS (optional — only present when <style> blocks exist)
+        └── style.css                                    # Tailwind-compiled CSS (required — App.vue imports the stylesheet)
 ```
 
 **Nothing else ships in the archive** — no source files, no `package.json`, no `node_modules`, no build configs. The release tarball is built explicitly from `frontend/` in the `build-and-release` workflow, and the `Verify only frontend/ is shipped` step in the same workflow fails the build if any non-`frontend/` path slips into the archive (deny-list + allow-list assertions).
 
-The installer in `spora-ai/installer` (any 1.x release) unpacks this tarball into `public/plugins/usage/` on the operator's host, so the host SPA's dynamic `import('/plugins/usage/main.js')` (per `registry.ts → mountPlugin`) finds the IIFE bundle at the path it expects. `style.css` is optional: when components don't ship `<style>` blocks, Vite doesn't emit it, the installer copies whatever's in `frontend/`, and the host's `PluginAppPage` auto-injects a `<link>` that 404s silently if the file is absent.
+The installer in `spora-ai/installer` (any 1.x release) unpacks this tarball into `public/plugins/usage/` on the operator's host, so the host SPA's dynamic `import('/plugins/usage/main.js')` (per `registry.ts → mountPlugin`) finds the IIFE bundle at the path it expects. `style.css` is **required**: `src/App.vue` imports the stylesheet, so the build always emits it, and `npm run smoke` reads the file — the check fails when it is absent.
 
 The versioned root is **load-bearing** — see "Why a versioned root directory" below.
 
@@ -49,15 +49,15 @@ Note: `composer.json`'s `archive.exclude` block is **only consumed by `composer 
 
 Composer's `TarDownloader` uses PHP's `PharData::extractTo()` internally, which fails with `Cannot extract '.', internal error` on the leading `.` directory entry. PHP requires the archive to have a non-trivial root directory.
 
-The fix is to wrap the contents in a versioned root before tarring:
+The fix is to wrap the contents in a versioned root before tarring. The `frontend/` **directory** is copied, not its contents: the installer looks for `frontend/` inside the archive, so a copy of the contents would leave it with nothing to find.
 
 ```bash
 mkdir -p staging/spora-plugin-usage-frontend-${TAG}
-cp -R frontend/. staging/spora-plugin-usage-frontend-${TAG}/
+cp -R frontend staging/spora-plugin-usage-frontend-${TAG}/
 tar -czf spora-plugin-usage-frontend-${TAG}.tar.gz -C staging spora-plugin-usage-frontend-${TAG}
 ```
 
-This produces `spora-plugin-usage-frontend-v<X.Y.Z>/…` entries.
+This produces `spora-plugin-usage-frontend-v<X.Y.Z>/…` entries — the same command the `Package` step of the `build-and-release` workflow runs.
 
 ## Why this is the process
 
@@ -71,9 +71,9 @@ If a release is broken, do NOT delete + retag the same version. Git tags are imm
 
 The v0.1.0 release declares `extra.spora-plugin-slug = "usage"` in `composer.json` so `SporaPluginFrontendInstaller` (in `spora-installer`) routes the bundle to `public/plugins/usage/` — matching the slug emitted by `AppsController` and consumed by the host SPA's `/plugins/<slug>/main.js` lazy-load. Without this field, the install fails loud. Confirm:
 
-- [ ] `package.json` `version` is `0.1.4`
+- [ ] `package.json` `version` is `0.1.0`
 - [ ] `composer.json` `dist.url` is `https://github.com/spora-ai/spora-plugin-usage-frontend/releases/download/v0.1.0/spora-plugin-usage-frontend-v0.1.0.tar.gz`
 - [ ] `composer.json` `extra.spora-plugin-slug` is `"usage"` (matches `plugin.json#slug` in `spora-plugin-usage`)
-- [ ] `ci.yml` `Verify only frontend/ is shipped` step still expects `frontend/main.js` under the versioned root (unchanged from v0.1.3)
+- [ ] `ci.yml` `Verify only frontend/ is shipped` step expects `frontend/main.js` **and** `frontend/style.css` under the versioned root
 - [ ] SonarCloud gate green on the `main` HEAD
 - [ ] Lint + Test + Build jobs green on the `main` HEAD

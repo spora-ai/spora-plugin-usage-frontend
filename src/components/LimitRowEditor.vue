@@ -10,6 +10,7 @@ const props = defineProps<{
     limit: UsageLimitDraft
     index: number
     locale: string
+    idPrefix: string
 }>()
 
 const emit = defineEmits<{
@@ -32,9 +33,26 @@ const modes: LimitMode[] = ['hard', 'soft']
  */
 const draft = ref<UsageLimitDraft>({ ...props.limit })
 
+/**
+ * The text of the cap field.
+ *
+ * A number field cannot hold the cap the operator is typing: "100.50"
+ * parses as 100 until the last digit is there, and a field bound to that
+ * number is rewritten under the cursor. The text is therefore the field's
+ * own, and the cap is what the row carries.
+ */
+const capText = ref(String(props.limit.cap))
+
 watch(
     () => props.limit,
     (limit) => {
+        // The parent hands the row back after every keystroke, and the text
+        // the operator is typing parses to the number the parent already
+        // holds — resyncing then would eat the digits. A number that
+        // really changed replaces the text.
+        if (draft.value.cap !== limit.cap) {
+            capText.value = String(limit.cap)
+        }
         draft.value = { ...limit }
     },
 )
@@ -66,6 +84,7 @@ function setEnabled(event: Event): void {
 function setCap(event: Event): void {
     // The server stores a cap in a NOT NULL column, so a row always has a
     // number: an emptied field reads as zero rather than as "no cap".
+    capText.value = (event.target as HTMLInputElement).value
     draft.value.cap = inputNumberOrZero(event)
     commit()
 }
@@ -86,12 +105,12 @@ function setWindowSize(event: Event): void {
                  those words for a screen reader, so it stays out of the layout. -->
             <label
                 class="sr-only"
-                :for="`usage-limit-window-${index}`"
+                :for="`${idPrefix}-limit-window-${index}`"
             >
                 {{ t('Window') }}
             </label>
             <select
-                :id="`usage-limit-window-${index}`"
+                :id="`${idPrefix}-limit-window-${index}`"
                 class="w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
                 :value="draft.window"
                 :data-testid="`usage-limit-window-${index}`"
@@ -108,13 +127,13 @@ function setWindowSize(event: Event): void {
             <label
                 v-if="draft.window === 'rolling'"
                 class="sr-only"
-                :for="`usage-limit-window-size-${index}`"
+                :for="`${idPrefix}-limit-window-size-${index}`"
             >
                 {{ t('Window size') }}
             </label>
             <input
                 v-if="draft.window === 'rolling'"
-                :id="`usage-limit-window-size-${index}`"
+                :id="`${idPrefix}-limit-window-size-${index}`"
                 type="number"
                 min="1"
                 class="mt-1 w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
@@ -126,12 +145,12 @@ function setWindowSize(event: Event): void {
         <td class="py-2 pr-2">
             <label
                 class="sr-only"
-                :for="`usage-limit-unit-${index}`"
+                :for="`${idPrefix}-limit-unit-${index}`"
             >
                 {{ t('Unit') }}
             </label>
             <select
-                :id="`usage-limit-unit-${index}`"
+                :id="`${idPrefix}-limit-unit-${index}`"
                 class="w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
                 :value="draft.unit"
                 :data-testid="`usage-limit-unit-${index}`"
@@ -149,17 +168,17 @@ function setWindowSize(event: Event): void {
         <td class="py-2 pr-2">
             <label
                 class="sr-only"
-                :for="`usage-limit-cap-${index}`"
+                :for="`${idPrefix}-limit-cap-${index}`"
             >
                 {{ t('Limit') }}
             </label>
             <input
-                :id="`usage-limit-cap-${index}`"
+                :id="`${idPrefix}-limit-cap-${index}`"
                 type="number"
                 min="0"
                 step="any"
                 class="w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
-                :value="draft.cap"
+                :value="capText"
                 :data-testid="`usage-limit-cap-${index}`"
                 @input="setCap"
             >
@@ -167,12 +186,12 @@ function setWindowSize(event: Event): void {
         <td class="py-2 pr-2">
             <label
                 class="sr-only"
-                :for="`usage-limit-mode-${index}`"
+                :for="`${idPrefix}-limit-mode-${index}`"
             >
                 {{ t('Mode') }}
             </label>
             <select
-                :id="`usage-limit-mode-${index}`"
+                :id="`${idPrefix}-limit-mode-${index}`"
                 class="w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
                 :value="draft.mode"
                 :data-testid="`usage-limit-mode-${index}`"
@@ -209,6 +228,7 @@ function setWindowSize(event: Event): void {
             <button
                 type="button"
                 class="rounded-md border border-border px-2 py-1 text-xs text-destructive transition-colors hover:bg-destructive/10"
+                :aria-label="t('Remove limit {number}', { number: index + 1 })"
                 :data-testid="`usage-limit-remove-${index}`"
                 @click="emit('remove')"
             >

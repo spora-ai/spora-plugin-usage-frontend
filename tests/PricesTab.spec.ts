@@ -40,7 +40,7 @@ function mountTab(options: HostOptions = {}) {
     })
     const pinia = createPinia()
     const wrapper = mount(PricesTab, {
-        props: { hostContext: host.context },
+        props: { hostContext: host.context, idPrefix: 'usage' },
         global: { plugins: [pinia] },
     })
     return { wrapper, host, pinia }
@@ -93,6 +93,19 @@ describe('PricesTab', () => {
         expect(body.prices[0]?.input_price).toBe(0.000004)
     })
 
+    it('keeps the digits of a price the operator is typing', async () => {
+        const { wrapper } = mountTab()
+        await flushPromises()
+        await flushPromises()
+        const input = wrapper.find<HTMLInputElement>('[data-testid="usage-price-input-0"]')
+        // The book hands the row back after every keystroke, so the field
+        // is rewritten unless it keeps the text the operator typed.
+        for (const prefix of ['0', '0.', '0.0', '0.00', '0.000', '0.0000', '0.00000', '0.000002']) {
+            await input.setValue(prefix)
+            expect(input.element.value).toBe(prefix)
+        }
+    })
+
     it('drops a price the operator removed', async () => {
         const { wrapper, host } = mountTab()
         await flushPromises()
@@ -111,6 +124,51 @@ describe('PricesTab', () => {
         await flushPromises()
         await flushPromises()
         expect(wrapper.find('[data-testid="usage-unpriced-empty"]').exists()).toBe(true)
+    })
+
+    it('reads the unpriced report again after a save', async () => {
+        let answer: { models: unknown[]; tools: unknown[] } = {
+            models: [{ provider: 'openai_compatible', model: 'internal-preview', calls: 12 }],
+            tools: [],
+        }
+        const { wrapper, host } = mountTab({
+            get: { '/usage/unpriced': () => answer },
+        })
+        await flushPromises()
+        await flushPromises()
+        expect(wrapper.find('[data-testid="usage-unpriced-model-0"]').exists()).toBe(true)
+
+        // The model was priced, so the server no longer reports it as free.
+        answer = { models: [], tools: [] }
+        await wrapper.find('[data-testid="usage-prices-save"]').trigger('click')
+        await flushPromises()
+        await flushPromises()
+
+        expect(host.api.get).toHaveBeenCalledWith('/usage/unpriced')
+        expect(wrapper.find('[data-testid="usage-unpriced-model-0"]').exists()).toBe(false)
+        expect(wrapper.find('[data-testid="usage-unpriced-empty"]').exists()).toBe(true)
+    })
+
+    it('keeps the saved book when the unpriced report cannot be read again', async () => {
+        let reads = 0
+        const { wrapper } = mountTab({
+            get: {
+                '/usage/unpriced': () => {
+                    reads += 1
+                    if (reads > 1) {
+                        throw new Error('Boom')
+                    }
+                    return { models: [], tools: [] }
+                },
+            },
+        })
+        await flushPromises()
+        await flushPromises()
+        await wrapper.find('[data-testid="usage-prices-save"]').trigger('click')
+        await flushPromises()
+        await flushPromises()
+        expect(wrapper.find('[data-testid="usage-prices-saved"]').exists()).toBe(true)
+        expect(wrapper.find('[data-testid="usage-prices-save-error"]').exists()).toBe(false)
     })
 
     it('adds a price the operator asked for', async () => {

@@ -6,6 +6,7 @@ import type { UsageTab } from '../types'
 const props = defineProps<{
     active: UsageTab
     isAdmin: boolean
+    idPrefix: string
 }>()
 
 const emit = defineEmits<{
@@ -44,10 +45,12 @@ const tabs = computed<{ id: UsageTab; label: string }[]>(() => {
     >
         <button
             v-for="tab in tabs"
+            :id="`${idPrefix}-tab-${tab.id}`"
             :key="tab.id"
             type="button"
             role="tab"
             :aria-selected="tab.id === active"
+            :aria-controls="`${idPrefix}-panel-${tab.id}`"
             class="border-b-2 px-3 py-2 text-sm font-medium transition-colors"
             :class="tab.id === active
                 ? 'border-primary text-foreground'

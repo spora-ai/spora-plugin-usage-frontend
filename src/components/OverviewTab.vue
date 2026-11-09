@@ -40,15 +40,35 @@ async function loadPrincipals(): Promise<void> {
     }
 }
 
+/**
+ * The series of the selected window.
+ *
+ * Switching the window fires the requests in parallel, so an earlier one
+ * can land after a later one. The window the request was made for is
+ * captured here, and the answer — the series, the error and the loading
+ * flag — is applied only while that window is still the selected one.
+ * Otherwise the chart would show the window the operator passed over, and
+ * a late answer would clear the spinner of a request still in flight.
+ */
 async function loadSeries(): Promise<void> {
+    const requested = seriesWindow.value
     seriesLoading.value = true
     seriesError.value = null
     try {
-        series.value = await props.hostContext.api.get<UsageSeries>(seriesPath(seriesWindow.value))
+        const response = await props.hostContext.api.get<UsageSeries>(seriesPath(requested))
+        if (requested !== seriesWindow.value) {
+            return
+        }
+        series.value = response
     } catch (e) {
+        if (requested !== seriesWindow.value) {
+            return
+        }
         seriesError.value = messageOf(e)
     } finally {
-        seriesLoading.value = false
+        if (requested === seriesWindow.value) {
+            seriesLoading.value = false
+        }
     }
 }
 
@@ -93,6 +113,7 @@ watch(seriesWindow, () => {
                             :class="option === seriesWindow
                                 ? 'bg-muted text-foreground'
                                 : 'text-muted-foreground hover:text-foreground'"
+                            :aria-pressed="option === seriesWindow"
                             :data-testid="`usage-series-window-${option}`"
                             @click="seriesWindow = option"
                         >

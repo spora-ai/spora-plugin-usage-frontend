@@ -30,7 +30,7 @@ function mountTab(options: HostOptions = {}, selectedPrincipalId: number | null 
         useUsageStore().selectedPrincipalId = selectedPrincipalId
     }
     const wrapper = mount(BudgetTab, {
-        props: { hostContext: host.context },
+        props: { hostContext: host.context, idPrefix: 'usage' },
         global: { plugins: [pinia] },
     })
     return { wrapper, host }
@@ -123,6 +123,58 @@ describe('BudgetTab', () => {
         expect(wrapper.find('[data-testid="usage-budget-action-error"]').text()).toContain(
             'Enter an amount to grant.',
         )
+    })
+
+    it('keeps the digits of an amount the operator is typing', async () => {
+        const { wrapper, host } = mountTab()
+        await flushPromises()
+        await flushPromises()
+        const input = wrapper.find<HTMLInputElement>('[data-testid="usage-grant-amount"]')
+        // An amount is typed digit by digit, and every prefix of it parses
+        // to a number that is not the text: "100.50" is 100 until the last
+        // digit is there. A field bound to that number would be rewritten
+        // under the cursor.
+        for (const prefix of ['1', '10', '100', '100.', '100.5', '100.50']) {
+            await input.setValue(prefix)
+            expect(input.element.value).toBe(prefix)
+        }
+        await wrapper.find('[data-testid="usage-grant-submit"]').trigger('submit')
+        await flushPromises()
+        expect(host.api.put).toHaveBeenCalledWith('/usage/principals/12/credits', {
+            amount: 100.5,
+            note: '',
+        })
+    })
+
+    it('keeps the decimal point of an amount the operator replaced', async () => {
+        const { wrapper, host } = mountTab()
+        await flushPromises()
+        await flushPromises()
+        const input = wrapper.find<HTMLInputElement>('[data-testid="usage-grant-amount"]')
+        await input.setValue('100.50')
+        // The operator picks the amount and types a new one: the decimal
+        // point is the operator's, not the number's.
+        await input.setValue('10.')
+        expect(input.element.value).toBe('10.')
+        await input.setValue('10.5')
+        await wrapper.find('[data-testid="usage-grant-submit"]').trigger('submit')
+        await flushPromises()
+        expect(host.api.put).toHaveBeenCalledWith('/usage/principals/12/credits', {
+            amount: 10.5,
+            note: '',
+        })
+    })
+
+    it('empties the amount field once the grant went through', async () => {
+        const { wrapper } = mountTab()
+        await flushPromises()
+        await flushPromises()
+        await wrapper.find('[data-testid="usage-grant-amount"]').setValue('100.50')
+        await wrapper.find('[data-testid="usage-grant-submit"]').trigger('submit')
+        await flushPromises()
+        expect(
+            wrapper.find<HTMLInputElement>('[data-testid="usage-grant-amount"]').element.value,
+        ).toBe('')
     })
 
     it('sends nothing when the principal is gone by the time the grant runs', async () => {

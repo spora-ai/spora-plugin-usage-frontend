@@ -9,7 +9,7 @@ import { formatTokens } from '../lib/format'
 import { useUsageStore } from '../stores/usage'
 import PriceRowEditor from './PriceRowEditor.vue'
 
-const props = defineProps<{ hostContext: PluginHostContext }>()
+const props = defineProps<{ hostContext: PluginHostContext; idPrefix: string }>()
 
 const { t, locale } = useI18n()
 const store = useUsageStore()
@@ -22,6 +22,19 @@ const loadError = ref<string | null>(null)
 const saveError = ref<string | null>(null)
 const saved = ref(false)
 
+/**
+ * The unpriced report as the panel holds it.
+ *
+ * The server may leave the rows out of the answer entirely, so the panel
+ * reads them as empty rather than as a missing key.
+ */
+function toUnpriced(response: UsageUnpriced): UsageUnpriced {
+    return {
+        models: response.models ?? [],
+        tools: response.tools ?? [],
+    }
+}
+
 async function load(): Promise<void> {
     loading.value = true
     loadError.value = null
@@ -32,10 +45,7 @@ async function load(): Promise<void> {
             props.hostContext.api.get<UsageUnpriced>(unpricedPath()),
         ])
         prices.value = (priceResponse.prices ?? []).map((price) => ({ ...price }))
-        unpriced.value = {
-            models: unpricedResponse.models ?? [],
-            tools: unpricedResponse.tools ?? [],
-        }
+        unpriced.value = toUnpriced(unpricedResponse)
     } catch (e) {
         if (isForbidden(e)) {
             store.markAdminDenied()
@@ -49,6 +59,23 @@ async function load(): Promise<void> {
 
 function updateRow(index: number, price: UsagePrice): void {
     prices.value = prices.value.map((row, position) => (position === index ? price : row))
+}
+
+/**
+ * The unpriced report, read again.
+ *
+ * A price that was just given changes what the server reports as free, so
+ * the report is read again rather than left as it was when the tab was
+ * opened. A failure here is not a failed save — the book was stored — so
+ * the report stays as it was.
+ */
+async function refreshUnpriced(): Promise<void> {
+    try {
+        const response = await props.hostContext.api.get<UsageUnpriced>(unpricedPath())
+        unpriced.value = toUnpriced(response)
+    } catch {
+        // The list stays as it was.
+    }
 }
 
 function addRow(): void {
@@ -87,9 +114,11 @@ async function save(): Promise<void> {
             return
         }
         saveError.value = messageOf(e)
+        return
     } finally {
         saving.value = false
     }
+    await refreshUnpriced()
 }
 
 onMounted(() => {
@@ -160,6 +189,7 @@ onMounted(() => {
                                 :price="price"
                                 :index="index"
                                 :locale="locale"
+                                :id-prefix="idPrefix"
                                 @change="updateRow(index, $event)"
                                 @remove="removeRow(index)"
                             />

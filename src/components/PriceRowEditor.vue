@@ -9,6 +9,7 @@ const props = defineProps<{
     price: UsagePrice
     index: number
     locale: string
+    idPrefix: string
 }>()
 
 const emit = defineEmits<{
@@ -20,11 +21,39 @@ const { t } = useI18n()
 
 const kinds: PriceKind[] = ['model', 'tool']
 
+const priceFields = ['input_price', 'output_price', 'cached_price', 'call_price'] as const
+
+type PriceField = (typeof priceFields)[number]
+
 const draft = ref<UsagePrice>({ ...props.price })
+
+/**
+ * The text of each price field, apart from the number the row carries.
+ *
+ * A number field cannot hold the price the operator is typing: "0.000002"
+ * parses as 0 until the last digit is there, and a field bound to that
+ * number is rewritten under the cursor. The text is therefore the field's
+ * own, and the parsed number is what the row hands back.
+ */
+const texts = ref<Record<PriceField, string>>({
+    input_price: String(props.price.input_price),
+    output_price: String(props.price.output_price),
+    cached_price: String(props.price.cached_price),
+    call_price: String(props.price.call_price),
+})
 
 watch(
     () => props.price,
     (price) => {
+        for (const field of priceFields) {
+            // The parent hands the row back after every keystroke, and the
+            // text the operator is typing parses to the number the parent
+            // already holds — resyncing then would eat the digits. A number
+            // that really changed replaces the text.
+            if (draft.value[field] !== price[field]) {
+                texts.value[field] = String(price[field])
+            }
+        }
         draft.value = { ...price }
     },
 )
@@ -43,7 +72,9 @@ function setText(field: 'provider' | 'key' | 'operation', event: Event): void {
     commit()
 }
 
-function setPrice(field: 'input_price' | 'output_price' | 'cached_price' | 'call_price', event: Event): void {
+function setPrice(field: PriceField, event: Event): void {
+    const input = event.target as HTMLInputElement
+    texts.value[field] = input.value
     draft.value[field] = inputNumberOrZero(event)
     commit()
 }
@@ -59,12 +90,12 @@ function setPrice(field: 'input_price' | 'output_price' | 'cached_price' | 'call
                  those words for a screen reader, so it stays out of the layout. -->
             <label
                 class="sr-only"
-                :for="`usage-price-kind-${index}`"
+                :for="`${idPrefix}-price-kind-${index}`"
             >
                 {{ t('Kind') }}
             </label>
             <select
-                :id="`usage-price-kind-${index}`"
+                :id="`${idPrefix}-price-kind-${index}`"
                 class="w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
                 :value="draft.kind"
                 :data-testid="`usage-price-kind-${index}`"
@@ -82,12 +113,12 @@ function setPrice(field: 'input_price' | 'output_price' | 'cached_price' | 'call
         <td class="py-2 pr-2">
             <label
                 class="sr-only"
-                :for="`usage-price-provider-${index}`"
+                :for="`${idPrefix}-price-provider-${index}`"
             >
                 {{ t('Provider') }}
             </label>
             <input
-                :id="`usage-price-provider-${index}`"
+                :id="`${idPrefix}-price-provider-${index}`"
                 type="text"
                 class="w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
                 :value="draft.provider"
@@ -99,12 +130,12 @@ function setPrice(field: 'input_price' | 'output_price' | 'cached_price' | 'call
         <td class="py-2 pr-2">
             <label
                 class="sr-only"
-                :for="`usage-price-key-${index}`"
+                :for="`${idPrefix}-price-key-${index}`"
             >
                 {{ t('Key') }}
             </label>
             <input
-                :id="`usage-price-key-${index}`"
+                :id="`${idPrefix}-price-key-${index}`"
                 type="text"
                 class="w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
                 :value="draft.key"
@@ -116,13 +147,13 @@ function setPrice(field: 'input_price' | 'output_price' | 'cached_price' | 'call
             <label
                 v-if="draft.kind === 'tool'"
                 class="sr-only"
-                :for="`usage-price-operation-${index}`"
+                :for="`${idPrefix}-price-operation-${index}`"
             >
                 {{ t('Operation') }}
             </label>
             <input
                 v-if="draft.kind === 'tool'"
-                :id="`usage-price-operation-${index}`"
+                :id="`${idPrefix}-price-operation-${index}`"
                 type="text"
                 class="w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
                 :value="draft.operation"
@@ -138,17 +169,17 @@ function setPrice(field: 'input_price' | 'output_price' | 'cached_price' | 'call
         >
             <label
                 class="sr-only"
-                :for="`usage-price-input-${index}`"
+                :for="`${idPrefix}-price-input-${index}`"
             >
                 {{ t('Input') }}
             </label>
             <input
-                :id="`usage-price-input-${index}`"
+                :id="`${idPrefix}-price-input-${index}`"
                 type="number"
                 min="0"
                 step="any"
                 class="w-24 rounded-md border border-border bg-background px-2 py-1 text-right text-sm"
-                :value="draft.input_price"
+                :value="texts.input_price"
                 :data-testid="`usage-price-input-${index}`"
                 @input="setPrice('input_price', $event)"
             >
@@ -165,17 +196,17 @@ function setPrice(field: 'input_price' | 'output_price' | 'cached_price' | 'call
         >
             <label
                 class="sr-only"
-                :for="`usage-price-output-${index}`"
+                :for="`${idPrefix}-price-output-${index}`"
             >
                 {{ t('Output') }}
             </label>
             <input
-                :id="`usage-price-output-${index}`"
+                :id="`${idPrefix}-price-output-${index}`"
                 type="number"
                 min="0"
                 step="any"
                 class="w-24 rounded-md border border-border bg-background px-2 py-1 text-right text-sm"
-                :value="draft.output_price"
+                :value="texts.output_price"
                 :data-testid="`usage-price-output-${index}`"
                 @input="setPrice('output_price', $event)"
             >
@@ -189,17 +220,17 @@ function setPrice(field: 'input_price' | 'output_price' | 'cached_price' | 'call
         >
             <label
                 class="sr-only"
-                :for="`usage-price-cached-${index}`"
+                :for="`${idPrefix}-price-cached-${index}`"
             >
                 {{ t('Cached') }}
             </label>
             <input
-                :id="`usage-price-cached-${index}`"
+                :id="`${idPrefix}-price-cached-${index}`"
                 type="number"
                 min="0"
                 step="any"
                 class="w-24 rounded-md border border-border bg-background px-2 py-1 text-right text-sm"
-                :value="draft.cached_price"
+                :value="texts.cached_price"
                 :data-testid="`usage-price-cached-${index}`"
                 @input="setPrice('cached_price', $event)"
             >
@@ -214,18 +245,18 @@ function setPrice(field: 'input_price' | 'output_price' | 'cached_price' | 'call
             <label
                 v-if="draft.kind === 'tool'"
                 class="sr-only"
-                :for="`usage-price-call-${index}`"
+                :for="`${idPrefix}-price-call-${index}`"
             >
                 {{ t('Per call') }}
             </label>
             <input
                 v-if="draft.kind === 'tool'"
-                :id="`usage-price-call-${index}`"
+                :id="`${idPrefix}-price-call-${index}`"
                 type="number"
                 min="0"
                 step="any"
                 class="w-24 rounded-md border border-border bg-background px-2 py-1 text-right text-sm"
-                :value="draft.call_price"
+                :value="texts.call_price"
                 :data-testid="`usage-price-call-${index}`"
                 @input="setPrice('call_price', $event)"
             >
@@ -235,6 +266,7 @@ function setPrice(field: 'input_price' | 'output_price' | 'cached_price' | 'call
             <button
                 type="button"
                 class="rounded-md border border-border px-2 py-1 text-xs text-destructive transition-colors hover:bg-destructive/10"
+                :aria-label="t('Remove price {number}', { number: index + 1 })"
                 :data-testid="`usage-price-remove-${index}`"
                 @click="emit('remove')"
             >

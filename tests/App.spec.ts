@@ -57,7 +57,7 @@ function mountApp(options: HostOptions = {}): {
     })
     const pinia = createPinia()
     const wrapper = mount(App, {
-        props: { hostContext: host.context },
+        props: { hostContext: host.context, idPrefix: 'usage-1' },
         global: { plugins: [pinia] },
     })
     return { wrapper, host, pinia }
@@ -170,5 +170,40 @@ describe('App.vue', () => {
         expect(selectTab).not.toHaveBeenCalled()
         expect(wrapper.find('[data-testid="usage-tab-prices"]').exists()).toBe(false)
         expect(wrapper.find('[data-testid="usage-panel-overview"]').exists()).toBe(true)
+    })
+
+    it('wires the panel to the tab that opened it', async () => {
+        const { wrapper } = mountApp({
+            isAdmin: true,
+            get: {
+                '/usage/principals': () => ({ principals: [] }),
+                '/usage/prices': () => ({ prices: [] }),
+                '/usage/unpriced': () => ({ models: [], tools: [] }),
+            },
+        })
+        await flushPromises()
+
+        const panel = wrapper.find('[role="tabpanel"]')
+        expect(panel.attributes('id')).toBe('usage-1-panel-overview')
+        expect(panel.attributes('aria-labelledby')).toBe('usage-1-tab-overview')
+
+        const tab = wrapper.find('[data-testid="usage-tab-overview"]')
+        expect(tab.attributes('id')).toBe('usage-1-tab-overview')
+        expect(tab.attributes('aria-controls')).toBe('usage-1-panel-overview')
+        expect(tab.attributes('aria-selected')).toBe('true')
+
+        await wrapper.find('[data-testid="usage-tab-prices"]').trigger('click')
+        await flushPromises()
+
+        expect(wrapper.find('[role="tabpanel"]').attributes('id')).toBe('usage-1-panel-prices')
+        expect(wrapper.find('[role="tabpanel"]').attributes('aria-labelledby')).toBe(
+            'usage-1-tab-prices',
+        )
+        expect(wrapper.find('[data-testid="usage-tab-prices"]').attributes('aria-selected')).toBe(
+            'true',
+        )
+        expect(wrapper.find('[data-testid="usage-tab-overview"]').attributes('aria-selected')).toBe(
+            'false',
+        )
     })
 })

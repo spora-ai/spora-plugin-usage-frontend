@@ -14,9 +14,9 @@ const limit: UsageLimitDraft = {
     remaining: 8765.5,
 }
 
-function mountEditor(overrides: Partial<UsageLimitDraft> = {}) {
+function mountEditor(overrides: Partial<UsageLimitDraft> = {}, index = 0) {
     return mount(LimitRowEditor, {
-        props: { limit: { ...limit, ...overrides }, index: 0, locale: 'en' },
+        props: { limit: { ...limit, ...overrides }, index, locale: 'en', idPrefix: 'usage' },
     })
 }
 
@@ -43,6 +43,32 @@ describe('LimitRowEditor', () => {
         const wrapper = mountEditor()
         await wrapper.find('[data-testid="usage-limit-cap-0"]').setValue('')
         expect(changedRow(wrapper)).toEqual({ ...limit, cap: 0 })
+    })
+
+    it('keeps the digits of a cap the operator is typing', async () => {
+        const wrapper = mountEditor()
+        const input = wrapper.find<HTMLInputElement>('[data-testid="usage-limit-cap-0"]')
+        // A cap is typed digit by digit, and every prefix of it parses to a
+        // number that is not the text: "100.50" is 100 until the last digit
+        // is there. A field bound to that number would be rewritten under
+        // the cursor.
+        for (const prefix of ['1', '10', '100', '100.', '100.5', '100.50']) {
+            await input.setValue(prefix)
+            // The limits tab hands the row back after every keystroke.
+            const changed = wrapper.emitted('change')?.at(-1)?.[0] as UsageLimitDraft
+            await wrapper.setProps({ limit: changed })
+            expect(input.element.value).toBe(prefix)
+        }
+        const changes = wrapper.emitted('change') as UsageLimitDraft[][]
+        expect(changes[changes.length - 1]?.[0]?.cap).toBe(100.5)
+    })
+
+    it('takes the text of a cap the parent changed', async () => {
+        const wrapper = mountEditor()
+        await wrapper.setProps({ limit: { ...limit, cap: 42.5 } })
+        expect(
+            wrapper.find<HTMLInputElement>('[data-testid="usage-limit-cap-0"]').element.value,
+        ).toBe('42.5')
     })
 
     it('changes the unit of the row', async () => {
@@ -99,6 +125,17 @@ describe('LimitRowEditor', () => {
         const wrapper = mountEditor()
         await wrapper.find('[data-testid="usage-limit-remove-0"]').trigger('click')
         expect(wrapper.emitted('remove')).toHaveLength(1)
+    })
+
+    it('names the button that removes the row', () => {
+        const wrapper = mountEditor()
+        expect(wrapper.find('[data-testid="usage-limit-remove-0"]').attributes('aria-label')).toBe(
+            'Remove limit 1',
+        )
+        const second = mountEditor({}, 1)
+        expect(second.find('[data-testid="usage-limit-remove-1"]').attributes('aria-label')).toBe(
+            'Remove limit 2',
+        )
     })
 
     it('follows the row its parent hands over', async () => {

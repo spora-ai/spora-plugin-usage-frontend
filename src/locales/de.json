@@ -68,6 +68,8 @@
   "Principals": "Principal-Übersicht",
   "Provider": "Anbieter",
   "Remove": "Entfernen",
+  "Remove limit {number}": "Grenzwert {number} entfernen",
+  "Remove price {number}": "Preis {number} entfernen",
   "Rolling": "Gleitend",
   "Save limits": "Grenzwerte speichern",
   "Save prices": "Preise speichern",

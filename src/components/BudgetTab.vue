@@ -8,7 +8,7 @@ import { isForbidden, messageOf } from '../lib/errors'
 import { formatCredits } from '../lib/format'
 import { useUsageStore } from '../stores/usage'
 
-const props = defineProps<{ hostContext: PluginHostContext }>()
+const props = defineProps<{ hostContext: PluginHostContext; idPrefix: string }>()
 
 const { t, locale } = useI18n()
 const store = useUsageStore()
@@ -23,6 +23,16 @@ const granting = ref(false)
 const loadError = ref<string | null>(null)
 const actionError = ref<string | null>(null)
 const granted = ref(false)
+
+/**
+ * The text of the amount field.
+ *
+ * A number field cannot hold the amount the operator is typing: "100.50"
+ * parses as 100 until the last digit is there, and a field bound to that
+ * number is rewritten under the cursor. The text is therefore the field's
+ * own, and the amount is what the grant sends.
+ */
+const amountText = ref('')
 
 async function load(id: number): Promise<void> {
     loading.value = true
@@ -64,7 +74,7 @@ async function grant(): Promise<void> {
         )
         balance.value = response.balance
         granted.value = true
-        amount.value = null
+        clearAmount()
         note.value = ''
     } catch (e) {
         if (isForbidden(e)) {
@@ -77,8 +87,21 @@ async function grant(): Promise<void> {
     }
 }
 
+/**
+ * Empty the amount field.
+ *
+ * The grant has taken the amount, so the text goes with the number: a
+ * field that kept its text would look filled while the grant refuses an
+ * empty amount.
+ */
+function clearAmount(): void {
+    amount.value = null
+    amountText.value = ''
+}
+
 function setAmount(event: Event): void {
     const raw = (event.target as HTMLInputElement).value
+    amountText.value = raw
     amount.value = raw.trim() === '' ? null : Number(raw)
 }
 
@@ -160,17 +183,17 @@ watch(
                 <h3 class="text-sm font-semibold">{{ t('Grant credits') }}</h3>
                 <div class="flex flex-col gap-1">
                     <label
-                        for="usage-grant-amount"
+                        :for="`${idPrefix}-grant-amount`"
                         class="text-sm font-medium"
                     >
                         {{ t('Amount') }}
                     </label>
                     <input
-                        id="usage-grant-amount"
+                        :id="`${idPrefix}-grant-amount`"
                         type="number"
                         step="any"
                         class="w-48 rounded-md border border-border bg-background px-2 py-1.5 text-sm"
-                        :value="amount ?? ''"
+                        :value="amountText"
                         data-testid="usage-grant-amount"
                         @input="setAmount"
                     >
@@ -180,13 +203,13 @@ watch(
                 </div>
                 <div class="flex flex-col gap-1">
                     <label
-                        for="usage-grant-note"
+                        :for="`${idPrefix}-grant-note`"
                         class="text-sm font-medium"
                     >
                         {{ t('Note') }}
                     </label>
                     <input
-                        id="usage-grant-note"
+                        :id="`${idPrefix}-grant-note`"
                         type="text"
                         class="w-80 rounded-md border border-border bg-background px-2 py-1.5 text-sm"
                         :value="note"

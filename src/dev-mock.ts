@@ -12,6 +12,8 @@
 import type { PluginHostContext } from './shims'
 import type {
     SeriesWindow,
+    UnpricedModel,
+    UnpricedTool,
     UsageLimitRow,
     UsagePrice,
     UsagePrincipal,
@@ -77,6 +79,24 @@ export const PRINCIPAL_FIXTURE: UsagePrincipal[] = [
             },
         ],
     },
+    {
+        id: 56,
+        type: 'user',
+        name: 'Grace Hopper',
+        balance: 0,
+        limits: [
+            {
+                window: 'day',
+                window_size: 1,
+                unit: 'credits',
+                cap: 250,
+                mode: 'soft',
+                enabled: true,
+                spend: 0,
+                remaining: 250,
+            },
+        ],
+    },
 ]
 
 export const SUMMARY_FIXTURE: UsagePrincipalSummary[] = [
@@ -108,9 +128,42 @@ export const PRICE_FIXTURE: UsagePrice[] = [
     },
 ]
 
-export const UNPRICED_FIXTURE: UsageUnpriced = {
+/**
+ * The calls the sandbox recorded.
+ *
+ * The unpriced report is derived from these against the *current* price
+ * book: a model or a tool that has a price row is no longer reported as
+ * free, which is what the sandbox has to show once a price is given.
+ */
+export const USED_FIXTURE: UsageUnpriced = {
     models: [{ provider: 'openai_compatible', model: 'internal-preview', calls: 12 }],
     tools: [{ tool_class: String.raw`Spora\Tools\WeatherTool`, tool_name: 'weather', calls: 4 }],
+}
+
+/**
+ * Whether a price row covers a model.
+ *
+ * A model is priced on its `(provider, model)` pair, and a row with an
+ * empty provider is the fallback for every provider — the rules the
+ * server's price book applies.
+ */
+function pricesModel(price: UsagePrice, model: UnpricedModel): boolean {
+    return (
+        price.kind === 'model' &&
+        price.key === model.model &&
+        (price.provider === model.provider || price.provider === '')
+    )
+}
+
+/**
+ * Whether a price row covers a tool.
+ *
+ * A tool is priced on its class; the operation narrows a price to one
+ * operation of a multi-operation tool, and the sandbox's recorded calls
+ * carry no operation of their own.
+ */
+function pricesTool(price: UsagePrice, tool: UnpricedTool): boolean {
+    return price.kind === 'tool' && price.key === tool.tool_class
 }
 
 /**
@@ -165,6 +218,20 @@ export function createMockApi(): PluginHostContext['api'] {
         return principals.find((principal) => principal.id === id)
     }
 
+    /**
+     * The calls that are still free, against the current price book.
+     */
+    function unpricedAnswer(): UsageUnpriced {
+        return {
+            models: USED_FIXTURE.models.filter(
+                (model) => !prices.some((price) => pricesModel(price, model)),
+            ),
+            tools: USED_FIXTURE.tools.filter(
+                (tool) => !prices.some((price) => pricesTool(price, tool)),
+            ),
+        }
+    }
+
     return {
         async get<T>(path: string): Promise<T> {
             if (path === '/usage/me') {
@@ -181,7 +248,7 @@ export function createMockApi(): PluginHostContext['api'] {
                 return { prices } as unknown as T
             }
             if (path === '/usage/unpriced') {
-                return UNPRICED_FIXTURE as unknown as T
+                return unpricedAnswer() as unknown as T
             }
             const detail = /^\/usage\/principals\/(\d+)$/.exec(path)
             if (detail !== null) {
@@ -223,11 +290,20 @@ export function createMockApi(): PluginHostContext['api'] {
                     throw Object.assign(new Error('Principal not found.'), { status: 404 })
                 }
                 const payload = body as { limits: UsageLimitRow[] }
-                principal.limits = payload.limits.map((limit) => ({
-                    ...limit,
-                    spend: 0,
-                    remaining: limit.cap,
-                }))
+                principal.limits = payload.limits.map((limit) => {
+                    // A limit row is identified by its window, its size and
+                    // its unit — the server keys its table the same way. The
+                    // spend of the window it already knows is kept, so an
+                    // edited cap is reported against what was really spent.
+                    const previous = principal.limits.find(
+                        (row) =>
+                            row.window === limit.window &&
+                            row.window_size === limit.window_size &&
+                            row.unit === limit.unit,
+                    )
+                    const spend = previous?.spend ?? 0
+                    return { ...limit, spend, remaining: limit.cap - spend }
+                })
                 return { limits: principal.limits } as unknown as T
             }
             const credits = /^\/usage\/principals\/(\d+)\/credits$/.exec(path)

@@ -68,6 +68,8 @@
   "Principals": "Principals",
   "Provider": "Provider",
   "Remove": "Remove",
+  "Remove limit {number}": "Remove limit {number}",
+  "Remove price {number}": "Remove price {number}",
   "Rolling": "Rolling",
   "Save limits": "Save limits",
   "Save prices": "Save prices",

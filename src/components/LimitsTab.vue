@@ -14,7 +14,7 @@ import { formatCredits, formatTokens } from '../lib/format'
 import { useUsageStore } from '../stores/usage'
 import LimitRowEditor from './LimitRowEditor.vue'
 
-const props = defineProps<{ hostContext: PluginHostContext }>()
+const props = defineProps<{ hostContext: PluginHostContext; idPrefix: string }>()
 
 const { t, locale } = useI18n()
 const store = useUsageStore()
@@ -243,6 +243,7 @@ watch(
                                 :limit="row"
                                 :index="index"
                                 :locale="locale"
+                                :id-prefix="idPrefix"
                                 @change="updateRow(index, $event)"
                                 @remove="removeRow(index)"
                             />

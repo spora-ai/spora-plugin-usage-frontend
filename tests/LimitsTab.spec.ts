@@ -41,7 +41,7 @@ function mountTab(options: HostOptions = {}, selectedPrincipalId: number | null 
         useUsageStore().selectedPrincipalId = selectedPrincipalId
     }
     const wrapper = mount(LimitsTab, {
-        props: { hostContext: host.context },
+        props: { hostContext: host.context, idPrefix: 'usage' },
         global: { plugins: [pinia] },
     })
     return { wrapper, host }
@@ -107,6 +107,23 @@ describe('LimitsTab', () => {
         await flushPromises()
         const [, body] = host.api.put.mock.calls[0] as [string, { limits: { cap: number }[] }]
         expect(body.limits[0]?.cap).toBe(0)
+    })
+
+    it('keeps the digits of a cap the operator is typing', async () => {
+        const { wrapper, host } = mountTab()
+        await flushPromises()
+        await flushPromises()
+        const input = wrapper.find<HTMLInputElement>('[data-testid="usage-limit-cap-0"]')
+        // The tab hands the row back after every keystroke, so the field is
+        // rewritten unless it keeps the text the operator typed.
+        for (const prefix of ['1', '10', '100', '100.', '100.5', '100.50']) {
+            await input.setValue(prefix)
+            expect(input.element.value).toBe(prefix)
+        }
+        await wrapper.find('[data-testid="usage-limits-save"]').trigger('click')
+        await flushPromises()
+        const [, body] = host.api.put.mock.calls[0] as [string, { limits: { cap: number }[] }]
+        expect(body.limits[0]?.cap).toBe(100.5)
     })
 
     it('asks the server for the figures again after a save', async () => {

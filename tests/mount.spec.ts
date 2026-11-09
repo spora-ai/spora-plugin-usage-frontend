@@ -7,6 +7,41 @@ interface MountedTarget extends HTMLElement {
     __sporaApp?: { unmount: () => void }
 }
 
+const priceResponse = {
+    prices: [
+        {
+            kind: 'model',
+            provider: 'openai_compatible',
+            key: 'gpt-4o',
+            operation: '',
+            input_price: 0.000002,
+            output_price: 0.000008,
+            cached_price: 0.0000005,
+            call_price: 0,
+        },
+    ],
+}
+
+function adminHost() {
+    return buildHost({
+        isAdmin: true,
+        get: {
+            '/usage/me': () => ({ principals: [] }),
+            '/usage/me/series?window=day': () => ({ window: 'day', points: [] }),
+            '/usage/prices': () => priceResponse,
+            '/usage/unpriced': () => ({ models: [], tools: [] }),
+        },
+    })
+}
+
+function click(target: HTMLElement, selector: string): void {
+    const button = target.querySelector(selector)
+    if (!(button instanceof HTMLElement)) {
+        throw new Error(`the mounted app has no ${selector}`)
+    }
+    button.dispatchEvent(new Event('click', { bubbles: true }))
+}
+
 describe('the mount contract', () => {
     it('mounts the panel into the target the host hands over', async () => {
         const host = buildHost({
@@ -51,5 +86,42 @@ describe('the mount contract', () => {
 
     it('installs itself on the global the host looks up', () => {
         expect(window.SporaAppUsage).toBe(SporaApp)
+    })
+
+    it('gives every mount its own ids', async () => {
+        const host = adminHost()
+        const first = document.createElement('div') as MountedTarget
+        const second = document.createElement('div') as MountedTarget
+        document.body.append(first, second)
+
+        SporaApp.mount(first, host.context)
+        SporaApp.mount(second, host.context)
+        await flushPromises()
+
+        click(first, '[data-testid="usage-tab-prices"]')
+        click(second, '[data-testid="usage-tab-prices"]')
+        await flushPromises()
+        await flushPromises()
+
+        // The root element keeps its id in every mount — the stylesheet
+        // scopes its utilities beneath it — so only the panel's own ids are
+        // per mount.
+        const idsOf = (target: HTMLElement) =>
+            [...target.querySelectorAll('[id]')]
+                .map((element) => element.id)
+                .filter((id) => id !== 'spora-plugin-usage')
+        const firstIds = idsOf(first)
+        const secondIds = idsOf(second)
+        expect(firstIds.length).toBeGreaterThan(0)
+        expect(secondIds.length).toBeGreaterThan(0)
+        expect(secondIds.some((id) => firstIds.includes(id))).toBe(false)
+
+        // Every label points at a control of its own mount: the second
+        // mount's label must not reach into the first one.
+        for (const label of second.querySelectorAll('label[for]')) {
+            const id = label.getAttribute('for') ?? ''
+            expect(second.querySelector(`[id="${id}"]`)).not.toBeNull()
+            expect(first.querySelector(`[id="${id}"]`)).toBeNull()
+        }
     })
 })

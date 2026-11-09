@@ -13,7 +13,7 @@ import PricesTab from './components/PricesTab.vue'
 
 import './style.css'
 
-const props = defineProps<{ hostContext: PluginHostContext }>()
+const props = defineProps<{ hostContext: PluginHostContext; idPrefix: string }>()
 
 const { t } = useI18n()
 const store = useUsageStore()
@@ -51,30 +51,42 @@ watch(isAdmin, (admin) => {
         <UsageTabBar
             :active="store.activeTab"
             :is-admin="isAdmin"
+            :id-prefix="idPrefix"
             @select="store.selectTab"
         />
 
         <main class="flex flex-col gap-6">
-            <OverviewTab
-                v-if="store.activeTab === 'overview'"
-                :host-context="hostContext"
-            />
-            <PrincipalsTab
-                v-else-if="store.activeTab === 'principals'"
-                :host-context="hostContext"
-            />
-            <LimitsTab
-                v-else-if="store.activeTab === 'limits'"
-                :host-context="hostContext"
-            />
-            <BudgetTab
-                v-else-if="store.activeTab === 'budget'"
-                :host-context="hostContext"
-            />
-            <PricesTab
-                v-else-if="store.activeTab === 'prices'"
-                :host-context="hostContext"
-            />
+            <!-- The panel is the tab's content, so the tab points at it and
+                 the panel names the tab it belongs to. -->
+            <div
+                :id="`${idPrefix}-panel-${store.activeTab}`"
+                role="tabpanel"
+                :aria-labelledby="`${idPrefix}-tab-${store.activeTab}`"
+            >
+                <OverviewTab
+                    v-if="store.activeTab === 'overview'"
+                    :host-context="hostContext"
+                />
+                <PrincipalsTab
+                    v-else-if="store.activeTab === 'principals'"
+                    :host-context="hostContext"
+                />
+                <LimitsTab
+                    v-else-if="store.activeTab === 'limits'"
+                    :host-context="hostContext"
+                    :id-prefix="idPrefix"
+                />
+                <BudgetTab
+                    v-else-if="store.activeTab === 'budget'"
+                    :host-context="hostContext"
+                    :id-prefix="idPrefix"
+                />
+                <PricesTab
+                    v-else-if="store.activeTab === 'prices'"
+                    :host-context="hostContext"
+                    :id-prefix="idPrefix"
+                />
+            </div>
         </main>
     </div>
 </template>

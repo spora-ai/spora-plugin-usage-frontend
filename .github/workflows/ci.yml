@@ -80,13 +80,10 @@ jobs:
       - name: Verify build artifacts
         # The runtime contract depends on `frontend/main.js` existing — that's
         # the file `SporaPluginFrontendInstaller` copies to
-        # `public/plugins/<slug>/main.js`. `frontend/style.css` is OPTIONAL:
-        # Vite only emits it when a component ships a `<style>` block. This
-        # plugin relies on the host SPA's Tailwind classes for styling, so
-        # none of our components have `<style>` blocks and the file is
-        # legitimately absent. The installer copies whatever's in `frontend/`,
-        # so the host page picks up the missing CSS as a no-op rather than an
-        # error.
+        # `public/plugins/<slug>/main.js`. `frontend/style.css` is REQUIRED
+        # too: `src/App.vue` imports the stylesheet, so the build always
+        # emits it, and `npm run smoke` reads the file — the check fails
+        # when it is absent.
         run: |
           set -euo pipefail
           if [ ! -s frontend/main.js ]; then
@@ -94,11 +91,11 @@ jobs:
             exit 1
           fi
           echo "frontend/main.js size: $(wc -c < frontend/main.js) bytes"
-          if [ -s frontend/style.css ]; then
-            echo "frontend/style.css size: $(wc -c < frontend/style.css) bytes"
-          else
-            echo "frontend/style.css not present (no <style> blocks in components — expected)"
+          if [ ! -s frontend/style.css ]; then
+            echo "::error::frontend/style.css missing or empty — App.vue imports the stylesheet and the smoke check reads it."
+            exit 1
           fi
+          echo "frontend/style.css size: $(wc -c < frontend/style.css) bytes"
 
       - name: Smoke test
         # Asserts the IIFE bundle registers `window.SporaAppUsage`
@@ -113,10 +110,10 @@ jobs:
           path: |
             frontend/main.js
             frontend/style.css
-          if-no-files-found: ignore
+          if-no-files-found: error
           retention-days: 14
-        # `if-no-files-found: ignore` because style.css is optional — see
-        # the "Verify build artifacts" step for the rationale.
+        # Both files are required — the "Verify build artifacts" step has
+        # already asserted that they exist.
 
   sonarqube:
     name: SonarQube scan
@@ -292,10 +289,9 @@ jobs:
 
           # Allow list: confirm the expected frontend/ entries are
           # present, each under the versioned root. `style.css` is
-          # OPTIONAL (Vite only emits it when a component ships a
-          # <style> block; this plugin relies on the host SPA's
-          # Tailwind classes, so no <style> blocks and no style.css).
-          for REQUIRED in main.js; do
+          # REQUIRED: `src/App.vue` imports the stylesheet, so the build
+          # always emits it.
+          for REQUIRED in main.js style.css; do
             if ! tar -tzf /tmp/release-check.tar.gz | grep -qx "^${PREFIX}frontend/${REQUIRED}"; then
               echo "::error::Release artifact is missing required entry: ${PREFIX}frontend/${REQUIRED}"
               exit 1

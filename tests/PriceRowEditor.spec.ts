@@ -14,9 +14,9 @@ const price: UsagePrice = {
     call_price: 0,
 }
 
-function mountEditor(overrides: Partial<UsagePrice> = {}) {
+function mountEditor(overrides: Partial<UsagePrice> = {}, index = 0) {
     return mount(PriceRowEditor, {
-        props: { price: { ...price, ...overrides }, index: 0, locale: 'en' },
+        props: { price: { ...price, ...overrides }, index, locale: 'en', idPrefix: 'usage' },
     })
 }
 
@@ -108,6 +108,66 @@ describe('PriceRowEditor', () => {
         const wrapper = mountEditor()
         await wrapper.find('[data-testid="usage-price-input-0"]').setValue('')
         expect(changedRow(wrapper)).toEqual({ ...price, input_price: 0 })
+    })
+
+    it('keeps the digits of a price the operator is typing', async () => {
+        const wrapper = mountEditor()
+        const input = wrapper.find<HTMLInputElement>('[data-testid="usage-price-input-0"]')
+        // A price is typed digit by digit, and every prefix of it parses to
+        // a number that is not the text: "0.000002" is 0 until the last
+        // digit is there. A field bound to that number would be rewritten
+        // under the cursor.
+        for (const prefix of ['0', '0.', '0.0', '0.00', '0.000', '0.0000', '0.00000', '0.000002']) {
+            await input.setValue(prefix)
+            // The price book hands the row back after every keystroke.
+            const changed = wrapper.emitted('change')?.at(-1)?.[0] as UsagePrice
+            await wrapper.setProps({ price: changed })
+            expect(input.element.value).toBe(prefix)
+        }
+        const changes = wrapper.emitted('change') as UsagePrice[][]
+        expect(changes[changes.length - 1]?.[0]?.input_price).toBe(0.000002)
+    })
+
+    it('keeps the digits of every price the operator is typing', async () => {
+        const wrapper = mountEditor({ kind: 'tool' })
+        for (const field of ['output', 'cached', 'call']) {
+            const input = wrapper.find<HTMLInputElement>(`[data-testid="usage-price-${field}-0"]`)
+            for (const prefix of ['0.', '0.0', '0.000006']) {
+                await input.setValue(prefix)
+                const changed = wrapper.emitted('change')?.at(-1)?.[0] as UsagePrice
+                await wrapper.setProps({ price: changed })
+                expect(input.element.value).toBe(prefix)
+            }
+        }
+    })
+
+    it('takes the text of a price the parent changed', async () => {
+        const wrapper = mountEditor()
+        await wrapper.setProps({ price: { ...price, input_price: 0.0005 } })
+        expect(
+            wrapper.find<HTMLInputElement>('[data-testid="usage-price-input-0"]').element.value,
+        ).toBe('0.0005')
+    })
+
+    it('keeps the text the operator is typing when the parent hands the row back', async () => {
+        const wrapper = mountEditor()
+        await wrapper.find('[data-testid="usage-price-input-0"]').setValue('0.')
+        // The parent stores what the field parses to and hands it back.
+        await wrapper.setProps({ price: { ...price, input_price: 0 } })
+        expect(
+            wrapper.find<HTMLInputElement>('[data-testid="usage-price-input-0"]').element.value,
+        ).toBe('0.')
+    })
+
+    it('names the button that removes the row', () => {
+        const wrapper = mountEditor()
+        expect(wrapper.find('[data-testid="usage-price-remove-0"]').attributes('aria-label')).toBe(
+            'Remove price 1',
+        )
+        const second = mountEditor({}, 1)
+        expect(second.find('[data-testid="usage-price-remove-1"]').attributes('aria-label')).toBe(
+            'Remove price 2',
+        )
     })
 
     it('removes the row', async () => {
