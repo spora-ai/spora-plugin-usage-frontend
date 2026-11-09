@@ -1,7 +1,8 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
-import { createPinia } from 'pinia'
+import { createPinia, type Pinia } from 'pinia'
 import App from '../src/App.vue'
+import { useUsageStore } from '../src/stores/usage'
 import { buildHost, forbidden, type HostOptions } from './helpers/host'
 
 const meResponse = {
@@ -44,6 +45,7 @@ const seriesResponse = {
 function mountApp(options: HostOptions = {}): {
     wrapper: VueWrapper
     host: ReturnType<typeof buildHost>
+    pinia: Pinia
 } {
     const host = buildHost({
         ...options,
@@ -53,11 +55,12 @@ function mountApp(options: HostOptions = {}): {
             ...options.get,
         },
     })
+    const pinia = createPinia()
     const wrapper = mount(App, {
         props: { hostContext: host.context },
-        global: { plugins: [createPinia()] },
+        global: { plugins: [pinia] },
     })
-    return { wrapper, host }
+    return { wrapper, host, pinia }
 }
 
 describe('App.vue', () => {
@@ -138,5 +141,34 @@ describe('App.vue', () => {
         await flushPromises()
         expect(wrapper.find('[data-testid="usage-overview-error"]').exists()).toBe(true)
         expect(wrapper.find('[data-testid="usage-overview-error"]').text()).toContain('Boom')
+    })
+
+    it('opens every admin tab', async () => {
+        const { wrapper } = mountApp({
+            isAdmin: true,
+            get: {
+                '/usage/principals': () => ({ principals: [] }),
+                '/usage/prices': () => ({ prices: [] }),
+                '/usage/unpriced': () => ({ models: [], tools: [] }),
+            },
+        })
+        await flushPromises()
+        for (const tab of ['principals', 'limits', 'budget', 'prices']) {
+            await wrapper.find(`[data-testid="usage-tab-${tab}"]`).trigger('click')
+            await flushPromises()
+            expect(wrapper.find(`[data-testid="usage-panel-${tab}"]`).exists()).toBe(true)
+        }
+    })
+
+    it('keeps the overview open when the caller stops being an admin', async () => {
+        const { wrapper, pinia } = mountApp({ isAdmin: true })
+        await flushPromises()
+        const store = useUsageStore(pinia)
+        const selectTab = vi.spyOn(store, 'selectTab')
+        store.markAdminDenied()
+        await flushPromises()
+        expect(selectTab).not.toHaveBeenCalled()
+        expect(wrapper.find('[data-testid="usage-tab-prices"]').exists()).toBe(false)
+        expect(wrapper.find('[data-testid="usage-panel-overview"]').exists()).toBe(true)
     })
 })

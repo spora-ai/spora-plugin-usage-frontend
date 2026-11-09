@@ -113,6 +113,24 @@ describe('OverviewTab', () => {
         expect(wrapper.find('[data-testid="usage-overview-no-principals"]').exists()).toBe(true)
     })
 
+    it('says so when the server sent no principal listing at all', async () => {
+        const { wrapper } = mountTab({
+            get: { '/usage/me': () => ({}) },
+        })
+        await flushPromises()
+        await flushPromises()
+        expect(wrapper.find('[data-testid="usage-overview-no-principals"]').exists()).toBe(true)
+    })
+
+    it('draws no bar when the server sent no series', async () => {
+        const { wrapper } = mountTab({
+            get: { '/usage/me/series?window=day': () => ({ window: 'day' }) },
+        })
+        await flushPromises()
+        await flushPromises()
+        expect(wrapper.find('[data-testid="usage-spend-empty"]').exists()).toBe(true)
+    })
+
     it('surfaces a failed load', async () => {
         const { wrapper } = mountTab({
             get: {

@@ -87,7 +87,23 @@ export default defineConfig({
             reporter: ['text', 'lcov', 'clover', 'json'],
             reportsDirectory: './coverage',
             include: ['src/**/*.{ts,vue}'],
-            exclude: ['src/dev-main.ts'],
+            // The dev sandbox's two files are excluded from coverage
+            // measurement, and the reason is the same for both: neither is
+            // production code.
+            //
+            // `dev-main.ts` is the side-effecting Vue bootstrap that mounts
+            // the app into the sandbox's #app node. It imports the
+            // document/window globals and is only loaded by index.html in
+            // `npm run dev` mode — production ships main.ts instead.
+            //
+            // `dev-mock.ts` is the in-memory API the sandbox talks to. It is
+            // imported by dev-main.ts and by nothing else, so it never
+            // reaches the IIFE bundle either.
+            //
+            // Excluding them keeps SonarCloud's "new code must have ≥80%
+            // coverage" gate honest: the gate is about the code that
+            // ships, and a mock API is not it.
+            exclude: ['src/dev-main.ts', 'src/dev-mock.ts'],
         },
     },
 })

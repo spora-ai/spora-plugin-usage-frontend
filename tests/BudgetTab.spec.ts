@@ -3,7 +3,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import BudgetTab from '../src/components/BudgetTab.vue'
 import { useUsageStore } from '../src/stores/usage'
-import { buildHost, type HostOptions } from './helpers/host'
+import { buildHost, forbidden, type HostOptions } from './helpers/host'
 
 const detailResponse = {
     principal: { id: 12, type: 'user', name: 'Ada Lovelace' },
@@ -97,5 +97,87 @@ describe('BudgetTab', () => {
         await flushPromises()
         expect(wrapper.find('[data-testid="usage-budget-action-error"]').text()).toContain('Boom')
         expect(wrapper.find('[data-testid="usage-budget-balance"]').text()).toContain('250.5')
+    })
+
+    it('says so for a principal without a credit pool', async () => {
+        const { wrapper } = mountTab({
+            get: { '/usage/principals/12': () => ({ ...detailResponse, balance: null }) },
+        })
+        await flushPromises()
+        await flushPromises()
+        expect(wrapper.find('[data-testid="usage-budget-balance"]').text()).toContain('No credit pool')
+    })
+
+    it('reads an emptied amount as no amount at all', async () => {
+        const { wrapper, host } = mountTab()
+        await flushPromises()
+        await flushPromises()
+        await wrapper.find('[data-testid="usage-grant-amount"]').setValue('100')
+        await wrapper.find('[data-testid="usage-grant-amount"]').setValue('')
+        await wrapper.find('[data-testid="usage-grant-submit"]').trigger('submit')
+        await flushPromises()
+        expect(host.api.put).not.toHaveBeenCalled()
+        expect(
+            wrapper.find<HTMLInputElement>('[data-testid="usage-grant-amount"]').element.value,
+        ).toBe('')
+        expect(wrapper.find('[data-testid="usage-budget-action-error"]').text()).toContain(
+            'Enter an amount to grant.',
+        )
+    })
+
+    it('sends nothing when the principal is gone by the time the grant runs', async () => {
+        const { wrapper, host } = mountTab()
+        await flushPromises()
+        await flushPromises()
+        await wrapper.find('[data-testid="usage-grant-amount"]').setValue('100')
+        // The panel still holds the form, but there is no principal left to
+        // grant the credits to.
+        useUsageStore().selectedPrincipalId = null
+        await wrapper.find('[data-testid="usage-grant-submit"]').trigger('submit')
+        expect(host.api.put).not.toHaveBeenCalled()
+    })
+
+    it('surfaces a failed load of the balance', async () => {
+        const { wrapper } = mountTab({
+            get: {
+                '/usage/principals/12': () => {
+                    throw new Error('Boom')
+                },
+            },
+        })
+        await flushPromises()
+        await flushPromises()
+        expect(wrapper.find('[data-testid="usage-budget-error"]').text()).toContain('Boom')
+    })
+
+    it('marks the caller as not an admin when the API refuses the balance', async () => {
+        const { wrapper } = mountTab({
+            get: {
+                '/usage/principals/12': () => {
+                    throw forbidden()
+                },
+            },
+        })
+        await flushPromises()
+        await flushPromises()
+        expect(useUsageStore().adminDenied).toBe(true)
+        expect(wrapper.find('[data-testid="usage-budget-error"]').exists()).toBe(false)
+    })
+
+    it('marks the caller as not an admin when the API refuses the grant', async () => {
+        const { wrapper } = mountTab({
+            put: {
+                '/usage/principals/12/credits': () => {
+                    throw forbidden()
+                },
+            },
+        })
+        await flushPromises()
+        await flushPromises()
+        await wrapper.find('[data-testid="usage-grant-amount"]').setValue('100')
+        await wrapper.find('[data-testid="usage-grant-submit"]').trigger('submit')
+        await flushPromises()
+        expect(useUsageStore().adminDenied).toBe(true)
+        expect(wrapper.find('[data-testid="usage-budget-action-error"]').exists()).toBe(false)
     })
 })

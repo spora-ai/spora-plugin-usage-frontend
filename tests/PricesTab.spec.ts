@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia } from 'pinia'
 import PricesTab from '../src/components/PricesTab.vue'
-import { buildHost, type HostOptions } from './helpers/host'
+import { useUsageStore } from '../src/stores/usage'
+import { buildHost, forbidden, type HostOptions } from './helpers/host'
 
 const priceResponse = {
     prices: [
@@ -37,11 +38,12 @@ function mountTab(options: HostOptions = {}) {
             ...options.put,
         },
     })
+    const pinia = createPinia()
     const wrapper = mount(PricesTab, {
         props: { hostContext: host.context },
-        global: { plugins: [createPinia()] },
+        global: { plugins: [pinia] },
     })
-    return { wrapper, host }
+    return { wrapper, host, pinia }
 }
 
 describe('PricesTab', () => {
@@ -109,5 +111,159 @@ describe('PricesTab', () => {
         await flushPromises()
         await flushPromises()
         expect(wrapper.find('[data-testid="usage-unpriced-empty"]').exists()).toBe(true)
+    })
+
+    it('adds a price the operator asked for', async () => {
+        const { wrapper, host } = mountTab()
+        await flushPromises()
+        await flushPromises()
+        await wrapper.find('[data-testid="usage-prices-add"]').trigger('click')
+        await wrapper.find('[data-testid="usage-prices-save"]').trigger('click')
+        await flushPromises()
+        const [, body] = host.api.put.mock.calls[0] as [string, { prices: unknown[] }]
+        expect(body.prices).toHaveLength(2)
+        expect(body.prices[1]).toEqual({
+            kind: 'model',
+            provider: '',
+            key: '',
+            operation: '',
+            input_price: 0,
+            output_price: 0,
+            cached_price: 0,
+            call_price: 0,
+        })
+    })
+
+    it('leaves the other rows alone when one of them is edited', async () => {
+        const { wrapper, host } = mountTab()
+        await flushPromises()
+        await flushPromises()
+        await wrapper.find('[data-testid="usage-prices-add"]').trigger('click')
+        await wrapper.find('[data-testid="usage-price-input-0"]').setValue('0.000004')
+        await wrapper.find('[data-testid="usage-prices-save"]').trigger('click')
+        await flushPromises()
+        const [, body] = host.api.put.mock.calls[0] as [string, { prices: { input_price: number }[] }]
+        expect(body.prices[0]?.input_price).toBe(0.000004)
+        expect(body.prices[1]?.input_price).toBe(0)
+    })
+
+    it('shows no prices when the server sent none', async () => {
+        const { wrapper } = mountTab({
+            get: { '/usage/prices': () => ({ prices: undefined }) },
+        })
+        await flushPromises()
+        await flushPromises()
+        expect(wrapper.findAll('[data-testid^="usage-price-editor-"]')).toHaveLength(0)
+    })
+
+    it('shows no unpriced model or tool when the server sent none', async () => {
+        const { wrapper } = mountTab({
+            get: { '/usage/unpriced': () => ({}) },
+        })
+        await flushPromises()
+        await flushPromises()
+        expect(wrapper.find('[data-testid="usage-unpriced-empty"]').exists()).toBe(true)
+    })
+
+    it('says so for a model that was used without a provider', async () => {
+        const { wrapper } = mountTab({
+            get: {
+                '/usage/unpriced': () => ({
+                    models: [{ provider: '', model: 'internal-preview', calls: 12 }],
+                    tools: [],
+                }),
+            },
+        })
+        await flushPromises()
+        await flushPromises()
+        expect(wrapper.find('[data-testid="usage-unpriced-model-0"]').text()).toContain(
+            'Any provider',
+        )
+    })
+
+    it('surfaces a failed load of the prices', async () => {
+        const { wrapper } = mountTab({
+            get: {
+                '/usage/prices': () => {
+                    throw new Error('Boom')
+                },
+            },
+        })
+        await flushPromises()
+        await flushPromises()
+        expect(wrapper.find('[data-testid="usage-prices-error"]').text()).toContain('Boom')
+    })
+
+    it('marks the caller as not an admin when the API refuses the prices', async () => {
+        const { wrapper, pinia } = mountTab({
+            get: {
+                '/usage/prices': () => {
+                    throw forbidden()
+                },
+            },
+        })
+        await flushPromises()
+        await flushPromises()
+        expect(useUsageStore(pinia).adminDenied).toBe(true)
+        expect(wrapper.find('[data-testid="usage-prices-error"]').exists()).toBe(false)
+    })
+
+    it('surfaces a failed save of the prices', async () => {
+        const { wrapper } = mountTab({
+            put: {
+                '/usage/prices': () => {
+                    throw new Error('Boom')
+                },
+            },
+        })
+        await flushPromises()
+        await flushPromises()
+        await wrapper.find('[data-testid="usage-prices-save"]').trigger('click')
+        await flushPromises()
+        expect(wrapper.find('[data-testid="usage-prices-save-error"]').text()).toContain('Boom')
+    })
+
+    it('marks the caller as not an admin when the API refuses the save', async () => {
+        const { wrapper, pinia } = mountTab({
+            put: {
+                '/usage/prices': () => {
+                    throw forbidden()
+                },
+            },
+        })
+        await flushPromises()
+        await flushPromises()
+        await wrapper.find('[data-testid="usage-prices-save"]').trigger('click')
+        await flushPromises()
+        expect(useUsageStore(pinia).adminDenied).toBe(true)
+        expect(wrapper.find('[data-testid="usage-prices-save-error"]').exists()).toBe(false)
+    })
+
+    it('shows the save as running until the server has answered', async () => {
+        let release: () => void = () => {}
+        const pending = new Promise<void>((resolve) => {
+            release = resolve
+        })
+        const { wrapper } = mountTab({
+            put: { '/usage/prices': () => pending.then(() => priceResponse) },
+        })
+        await flushPromises()
+        await flushPromises()
+        await wrapper.find('[data-testid="usage-prices-save"]').trigger('click')
+        expect(wrapper.find('[data-testid="usage-prices-save"]').text()).toBe('Saving…')
+        release()
+        await flushPromises()
+        expect(wrapper.find('[data-testid="usage-prices-save"]').text()).toBe('Save prices')
+    })
+
+    it('shows no prices when the server answered the save without any', async () => {
+        const { wrapper } = mountTab({
+            put: { '/usage/prices': () => ({}) },
+        })
+        await flushPromises()
+        await flushPromises()
+        await wrapper.find('[data-testid="usage-prices-save"]').trigger('click')
+        await flushPromises()
+        expect(wrapper.findAll('[data-testid^="usage-price-editor-"]')).toHaveLength(0)
     })
 })

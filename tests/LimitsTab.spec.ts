@@ -3,7 +3,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import LimitsTab from '../src/components/LimitsTab.vue'
 import { useUsageStore } from '../src/stores/usage'
-import { buildHost, type HostOptions } from './helpers/host'
+import { buildHost, forbidden, type HostOptions } from './helpers/host'
 
 const detailResponse = {
     principal: { id: 12, type: 'user', name: 'Ada Lovelace' },
@@ -175,5 +175,86 @@ describe('LimitsTab', () => {
         await flushPromises()
         expect(wrapper.find('[data-testid="usage-limits-save-error"]').text()).toContain('Boom')
         expect(wrapper.findAll('[data-testid^="usage-limit-editor-"]')).toHaveLength(1)
+    })
+
+    it('surfaces a failed load of the limits', async () => {
+        const { wrapper } = mountTab({
+            get: {
+                '/usage/principals/12': () => {
+                    throw new Error('Boom')
+                },
+            },
+        })
+        await flushPromises()
+        await flushPromises()
+        expect(wrapper.find('[data-testid="usage-limits-error"]').text()).toContain('Boom')
+        expect(wrapper.findAll('[data-testid^="usage-limit-editor-"]')).toHaveLength(0)
+    })
+
+    it('marks the caller as not an admin when the API refuses the limits', async () => {
+        const { wrapper } = mountTab({
+            get: {
+                '/usage/principals/12': () => {
+                    throw forbidden()
+                },
+            },
+        })
+        await flushPromises()
+        await flushPromises()
+        expect(useUsageStore().adminDenied).toBe(true)
+        expect(wrapper.find('[data-testid="usage-limits-error"]').exists()).toBe(false)
+    })
+
+    it('marks the caller as not an admin when the API refuses the save', async () => {
+        const { wrapper } = mountTab({
+            put: {
+                '/usage/principals/12/limits': () => {
+                    throw forbidden()
+                },
+            },
+        })
+        await flushPromises()
+        await flushPromises()
+        await wrapper.find('[data-testid="usage-limits-save"]').trigger('click')
+        await flushPromises()
+        expect(useUsageStore().adminDenied).toBe(true)
+        expect(wrapper.find('[data-testid="usage-limits-save-error"]').exists()).toBe(false)
+    })
+
+    it('sends nothing when the principal is gone by the time the save runs', async () => {
+        const { wrapper, host } = mountTab()
+        await flushPromises()
+        await flushPromises()
+        // The panel still holds the button, but there is no principal left
+        // to save the limits of.
+        useUsageStore().selectedPrincipalId = null
+        await wrapper.find('[data-testid="usage-limits-save"]').trigger('click')
+        expect(host.api.put).not.toHaveBeenCalled()
+    })
+
+    it('leaves the other rows alone when one of them is edited', async () => {
+        const { wrapper, host } = mountTab()
+        await flushPromises()
+        await flushPromises()
+        await wrapper.find('[data-testid="usage-limits-add"]').trigger('click')
+        await wrapper.find('[data-testid="usage-limit-cap-0"]').setValue('500')
+        await wrapper.find('[data-testid="usage-limits-save"]').trigger('click')
+        await flushPromises()
+        const [, body] = host.api.put.mock.calls[0] as [string, { limits: { cap: number }[] }]
+        expect(body.limits[0]?.cap).toBe(500)
+        expect(body.limits[1]?.cap).toBe(0)
+    })
+
+    it('shows no limits when the server sent none', async () => {
+        const { wrapper } = mountTab({
+            get: {
+                '/usage/principals/12': () => ({ ...detailResponse, limits: undefined }),
+            },
+        })
+        await flushPromises()
+        await flushPromises()
+        expect(wrapper.find('[data-testid="usage-limits-error"]').exists()).toBe(false)
+        expect(wrapper.text()).toContain('No limits are set.')
+        expect(wrapper.findAll('[data-testid^="usage-limit-editor-"]')).toHaveLength(0)
     })
 })

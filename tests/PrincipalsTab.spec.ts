@@ -59,6 +59,33 @@ describe('PrincipalsTab', () => {
         expect(useUsageStore().selectedPrincipalId).toBe(34)
     })
 
+    it('picks a principal with the space key as well', async () => {
+        const { wrapper } = mountTab()
+        await flushPromises()
+        await flushPromises()
+        await wrapper.find('[data-testid="usage-principal-row-34"]').trigger('keydown', { key: ' ' })
+        await flushPromises()
+        expect(useUsageStore().selectedPrincipalId).toBe(34)
+    })
+
+    it('picks a principal from the row as well', async () => {
+        const { wrapper } = mountTab()
+        await flushPromises()
+        await flushPromises()
+        await wrapper.find('[data-testid="usage-principal-row-34"]').trigger('click')
+        await flushPromises()
+        expect(useUsageStore().selectedPrincipalId).toBe(34)
+    })
+
+    it('says so when the server sent no principals', async () => {
+        const { wrapper } = mountTab({
+            get: { '/usage/principals': () => ({}) },
+        })
+        await flushPromises()
+        await flushPromises()
+        expect(wrapper.find('[data-testid="usage-principals-empty"]').exists()).toBe(true)
+    })
+
     it('marks the caller as not an admin when the API refuses the listing', async () => {
         const { wrapper } = mountTab({
             get: {
