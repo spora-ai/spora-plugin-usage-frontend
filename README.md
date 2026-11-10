@@ -8,12 +8,13 @@ Pre-built Vue SPA for the Spora **Usage** app. Delivered as a Composer package o
 - Backend-only operators can `composer require spora-ai/spora-plugin-usage` without pulling in npm-buildable assets.
 - The bundle is independently testable in isolation (Vitest + the smoke script).
 
-## The four tabs
+## The five tabs
 
 | Tab | Who | What it shows |
 | --- | --- | --- |
 | **Overview** | everyone | The caller's own principals: the credit balance, the limits with what is left of each window, and the spend over time. An admin also gets the install-wide face: what the installation spent, who spent it, which credit pools are empty, which models and tools are used and cost nothing, and which calls had a price and were not billed. |
-| **Limits** | admin | The picked principal's limit rows — the window, the unit, the cap, the mode, whether it is on — and the spend-to-date in each window. Editable. |
+| **Limits** | admin | The picked principal's limit rows — the window, the unit, the cap, the mode, whether it is on — and the spend-to-date in each window. Editable. It also names the limits that actually govern the principal. |
+| **Defaults** | admin | The default limit sets: everyone, users and groups. Editable, and saved as one object because the server replaces the whole payload at once. |
 | **Budget** | admin | The picked principal's credit balance and a grant form. |
 | **Prices** | admin | The price book, and the unpriced models and tools. |
 
@@ -26,6 +27,10 @@ The picker is an **admin** control, because the tabs it scopes are admin tabs. A
 **The API is the gate.** The admin tabs hide themselves for a non-admin, but that is a courtesy: every admin route carries the admin middleware, and a 403 on an admin call sets the app's `adminDenied` flag, which hides the admin tabs and returns to Overview. A 403 is not retried.
 
 **A limit with no cap is a row that does not exist.** The editor adds and removes rows; there is no "cleared cap" state, because the backend's `cap` column is `NOT NULL` and a null would be a malformed request.
+
+**A principal nobody configured is held to the default.** The Defaults tab holds three sets: `all` (everyone), `user` and `group`. A type's own set *replaces* the general one rather than adding to it, so a user is held to the `user` set when there is one and to the `all` set otherwise. A principal with limits of its own — even a switched-off row — is not held to any default: a row of its own is a configuration. The Limits panel says which of the three cases a principal is in, and says loudly when a principal is governed by nothing at all, because that is the case the defaults exist to prevent.
+
+**The defaults are saved as one object.** `PUT /usage/defaults` replaces every scope the payload carries and leaves a scope that is not in the payload as it is, so the Defaults tab has one Save button for the three sections rather than one per section.
 
 **The price book offers what the installation knows.** The model and the tool of a price row are dropdowns, listing the models and the tools the install has used — models for a model row, tools for a tool row, never the other kind. Picking a model brings its provider with it, because the pair is the book's key. The free-text field stays beside the dropdown — a price for a model the installation has never used still has to be enterable. Changing a row's kind clears its key: the key means a model name in one kind and a tool's class in the other, and it cannot carry over.
 
@@ -44,6 +49,8 @@ Every request goes through the host's typed client (`hostContext.api`), so CSRF,
 | `GET` | `/usage/prices` |
 | `PUT` | `/usage/prices` |
 | `GET` | `/usage/unpriced` |
+| `GET` | `/usage/defaults` |
+| `PUT` | `/usage/defaults` |
 
 **Per-token prices are unreadable.** The wire carries credits per token (`0.000002`). The price book shows credits **per million tokens** with the exact per-token value in the row's `title`, and the column header says so.
 
@@ -88,7 +95,7 @@ Against a host checkout, the host SPA proxies `/plugins/usage` to this server: s
 
 The IIFE wrapper installs this on `window.SporaAppUsage`; the host's `apps/registry.ts` reads `window.SporaAppUsage.mount` and `unmount` and calls them when `/apps/usage` is mounted and unmounted.
 
-The plugin installs a **local** Pinia for its own state — the open tab, the selected principal and the principal listing — so nothing lands in the host's stores. The host's own services (auth) are reached through the Pinia instance the host passes in `hostContext.pinia`.
+The plugin installs a **local** Pinia for its own state — the open tab, the selected principal, the principal listing and the default limit sets — so nothing lands in the host's stores. The host's own services (auth) are reached through the Pinia instance the host passes in `hostContext.pinia`.
 
 **The host's auth store is read from a private field.** `src/lib/host-auth.ts` reads `pinia._s`, Pinia's internal store map, because the plugin cannot import the host's `useAuthStore` (separate bundles) and the host publishes no module for it. The host creates its auth store before it mounts the router — and so before any plugin mounts — so the store is there when the plugin asks; if it is not, the panel reads the caller as a non-admin and the admin tabs simply do not appear. The sibling `spora-plugin-social-frontend` reads the host's theme store the same way, so this is the family's established pattern; what would replace it is a host change that publishes the user on the plugin host context.
 

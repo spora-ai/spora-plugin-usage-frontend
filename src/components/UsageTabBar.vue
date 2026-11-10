@@ -33,6 +33,7 @@ const tabs = computed<{ id: UsageTab; label: string }[]>(() => {
     }
     visible.push(
         { id: 'limits', label: t('Limits') },
+        { id: 'defaults', label: t('Defaults') },
         { id: 'budget', label: t('Budget') },
         { id: 'prices', label: t('Prices') },
     )

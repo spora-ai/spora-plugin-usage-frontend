@@ -38,6 +38,16 @@ export function pricesPath(): string {
     return `${USAGE_PATH}/prices`
 }
 
+/**
+ * The default limit sets.
+ *
+ * The same path for the read and for the write: the body tells them
+ * apart.
+ */
+export function defaultsPath(): string {
+    return `${USAGE_PATH}/defaults`
+}
+
 export function unpricedPath(): string {
     return `${USAGE_PATH}/unpriced`
 }

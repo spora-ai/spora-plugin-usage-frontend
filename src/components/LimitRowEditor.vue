@@ -6,12 +6,34 @@ import { formatCredits } from '../lib/format'
 import { inputNumber, inputNumberOrZero } from '../lib/inputs'
 import { useUsageLabels } from '../composables/useUsageLabels'
 
-const props = defineProps<{
-    limit: UsageLimitDraft
-    index: number
-    locale: string
-    idPrefix: string
-}>()
+const props = withDefaults(
+    defineProps<{
+        limit: UsageLimitDraft
+        index: number
+        locale: string
+        idPrefix: string
+        /**
+         * The namespace of the row's test ids.
+         *
+         * A tab that shows the editor more than once — the Defaults tab
+         * has a table per scope — would otherwise put the same test id on
+         * three rows, and a test could no longer say which one it meant.
+         */
+        testIdPrefix?: string
+        /**
+         * Whether the row shows what the window has spent.
+         *
+         * A default limit governs principals nobody configured, so there
+         * is no spend of its own to report: the column would be a column
+         * of dashes.
+         */
+        showFigures?: boolean
+    }>(),
+    {
+        testIdPrefix: 'usage-limit',
+        showFigures: true,
+    },
+)
 
 const emit = defineEmits<{
     (event: 'change', limit: UsageLimitDraft): void
@@ -98,7 +120,7 @@ function setWindowSize(event: Event): void {
 <template>
     <tr
         class="border-b border-border/60 align-top last:border-0"
-        :data-testid="`usage-limit-editor-${index}`"
+        :data-testid="`${testIdPrefix}-editor-${index}`"
     >
         <td class="py-2 pr-2">
             <!-- The column header is the visible caption; the label repeats
@@ -113,7 +135,7 @@ function setWindowSize(event: Event): void {
                 :id="`${idPrefix}-limit-window-${index}`"
                 class="w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
                 :value="draft.window"
-                :data-testid="`usage-limit-window-${index}`"
+                :data-testid="`${testIdPrefix}-window-${index}`"
                 @change="setWindow"
             >
                 <option
@@ -138,7 +160,7 @@ function setWindowSize(event: Event): void {
                 min="1"
                 class="mt-1 w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
                 :value="draft.window_size"
-                :data-testid="`usage-limit-window-size-${index}`"
+                :data-testid="`${testIdPrefix}-window-size-${index}`"
                 @input="setWindowSize"
             >
         </td>
@@ -153,7 +175,7 @@ function setWindowSize(event: Event): void {
                 :id="`${idPrefix}-limit-unit-${index}`"
                 class="w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
                 :value="draft.unit"
-                :data-testid="`usage-limit-unit-${index}`"
+                :data-testid="`${testIdPrefix}-unit-${index}`"
                 @change="setUnit"
             >
                 <option
@@ -179,7 +201,7 @@ function setWindowSize(event: Event): void {
                 step="any"
                 class="w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
                 :value="capText"
-                :data-testid="`usage-limit-cap-${index}`"
+                :data-testid="`${testIdPrefix}-cap-${index}`"
                 @input="setCap"
             >
         </td>
@@ -194,7 +216,7 @@ function setWindowSize(event: Event): void {
                 :id="`${idPrefix}-limit-mode-${index}`"
                 class="w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
                 :value="draft.mode"
-                :data-testid="`usage-limit-mode-${index}`"
+                :data-testid="`${testIdPrefix}-mode-${index}`"
                 @change="setMode"
             >
                 <option
@@ -207,8 +229,9 @@ function setWindowSize(event: Event): void {
             </select>
         </td>
         <td
+            v-if="showFigures"
             class="py-2 pr-2 text-right text-xs text-muted-foreground"
-            :data-testid="`usage-limit-figures-${index}`"
+            :data-testid="`${testIdPrefix}-figures-${index}`"
         >
             <div>{{ formatCredits(draft.spend, locale) }}</div>
             <div>{{ formatCredits(draft.remaining, locale) }}</div>
@@ -218,7 +241,7 @@ function setWindowSize(event: Event): void {
                 <input
                     type="checkbox"
                     :checked="draft.enabled"
-                    :data-testid="`usage-limit-enabled-${index}`"
+                    :data-testid="`${testIdPrefix}-enabled-${index}`"
                     @change="setEnabled"
                 >
                 {{ t('Enabled') }}
@@ -229,7 +252,7 @@ function setWindowSize(event: Event): void {
                 type="button"
                 class="rounded-md border border-border px-2 py-1 text-xs text-destructive transition-colors hover:bg-destructive/10"
                 :aria-label="t('Remove limit {number}', { number: index + 1 })"
-                :data-testid="`usage-limit-remove-${index}`"
+                :data-testid="`${testIdPrefix}-remove-${index}`"
                 @click="emit('remove')"
             >
                 {{ t('Remove') }}

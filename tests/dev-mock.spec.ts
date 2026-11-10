@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { createMockApi, PRICE_FIXTURE } from '../src/dev-mock'
-import type { UsageLimit, UsagePrice, UsagePrincipalSummary, UsageUnpriced } from '../src/types'
+import { createMockApi, DEFAULTS_FIXTURE, PRICE_FIXTURE } from '../src/dev-mock'
+import type {
+    UsageDefaultLimits,
+    UsageLimit,
+    UsagePrice,
+    UsagePrincipalSummary,
+    UsageUnpriced,
+} from '../src/types'
 
 describe('the dev mock', () => {
     it('answers for every principal the listing names', async () => {
@@ -113,5 +119,40 @@ describe('the dev mock', () => {
 
         const unpriced = await api.get<UsageUnpriced>('/usage/unpriced')
         expect(unpriced.tools).toEqual([])
+    })
+
+    it('answers with the default limits of every scope', async () => {
+        const api = createMockApi()
+        const answer = await api.get<{ defaults: UsageDefaultLimits }>('/usage/defaults')
+        expect(answer.defaults.all).toHaveLength(DEFAULTS_FIXTURE.all.length)
+        expect(answer.defaults.user).toHaveLength(DEFAULTS_FIXTURE.user.length)
+        expect(answer.defaults.group).toHaveLength(DEFAULTS_FIXTURE.group.length)
+    })
+
+    it('keeps a default the sandbox was given', async () => {
+        const api = createMockApi()
+        const row = {
+            window: 'day',
+            window_size: 1,
+            unit: 'credits',
+            cap: 50,
+            mode: 'soft',
+            enabled: true,
+        }
+        await api.put('/usage/defaults', { defaults: { user: [row] } })
+
+        const answer = await api.get<{ defaults: UsageDefaultLimits }>('/usage/defaults')
+        expect(answer.defaults.user).toHaveLength(1)
+        expect(answer.defaults.user[0]?.cap).toBe(50)
+    })
+
+    it('leaves a scope the payload does not carry alone', async () => {
+        const api = createMockApi()
+        await api.put('/usage/defaults', { defaults: { user: [] } })
+
+        const answer = await api.get<{ defaults: UsageDefaultLimits }>('/usage/defaults')
+        expect(answer.defaults.user).toHaveLength(0)
+        expect(answer.defaults.all).toHaveLength(DEFAULTS_FIXTURE.all.length)
+        expect(answer.defaults.group).toHaveLength(DEFAULTS_FIXTURE.group.length)
     })
 })

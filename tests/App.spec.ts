@@ -61,6 +61,7 @@ function mountApp(options: HostOptions = {}): {
             '/usage/me/series?window=day': () => seriesResponse,
             '/usage/principals': () => scopeResponse,
             '/usage/unpriced': () => ({ models: [], tools: [] }),
+            '/usage/defaults': () => ({ defaults: { all: [], user: [], group: [] } }),
             ...options.get,
         },
     })
@@ -94,6 +95,7 @@ describe('App.vue', () => {
         await flushPromises()
         expect(wrapper.find('[data-testid="usage-tab-overview"]').exists()).toBe(true)
         expect(wrapper.find('[data-testid="usage-tab-limits"]').exists()).toBe(false)
+        expect(wrapper.find('[data-testid="usage-tab-defaults"]').exists()).toBe(false)
         expect(wrapper.find('[data-testid="usage-tab-budget"]').exists()).toBe(false)
         expect(wrapper.find('[data-testid="usage-tab-prices"]').exists()).toBe(false)
     })
@@ -101,7 +103,7 @@ describe('App.vue', () => {
     it('offers the admin tabs to an admin', async () => {
         const { wrapper } = mountApp({ isAdmin: true })
         await flushPromises()
-        for (const tab of ['overview', 'limits', 'budget', 'prices']) {
+        for (const tab of ['overview', 'limits', 'defaults', 'budget', 'prices']) {
             expect(wrapper.find(`[data-testid="usage-tab-${tab}"]`).exists()).toBe(true)
         }
     })
@@ -217,7 +219,7 @@ describe('App.vue', () => {
             },
         })
         await flushPromises()
-        for (const tab of ['limits', 'budget', 'prices']) {
+        for (const tab of ['limits', 'defaults', 'budget', 'prices']) {
             await wrapper.find(`[data-testid="usage-tab-${tab}"]`).trigger('click')
             await flushPromises()
             expect(wrapper.find(`[data-testid="usage-panel-${tab}"]`).exists()).toBe(true)

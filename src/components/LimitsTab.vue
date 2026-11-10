@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { PluginHostContext } from '../shims'
 import type {
+    DefaultLimitScope,
+    PrincipalType,
     UsageLimitDraft,
     UsageLimitRow,
     UsageLimitsResponse,
@@ -11,6 +13,7 @@ import type {
 import { limitsPath, principalPath } from '../lib/usage-api'
 import { isForbidden, messageOf } from '../lib/errors'
 import { formatCredits, formatTokens } from '../lib/format'
+import { resolveDefaultScope } from '../lib/defaults'
 import { useUsageStore } from '../stores/usage'
 import LimitRowEditor from './LimitRowEditor.vue'
 import PrincipalPicker from './PrincipalPicker.vue'
@@ -37,6 +40,60 @@ const principalId = computed(() => store.selectedPrincipalId)
  * before the panel's own read has answered.
  */
 const scopeName = computed(() => store.selectedPrincipal?.name ?? null)
+
+/**
+ * The type of the principal the panel is about.
+ *
+ * The panel's own read is the authority; the picker's listing answers
+ * before it does, and says the same thing.
+ */
+const principalType = computed<PrincipalType | null>(
+    () => detail.value?.principal.type ?? store.selectedPrincipal?.type ?? null,
+)
+
+/**
+ * The default set that governs this principal, if one does.
+ */
+const defaultScope = computed<DefaultLimitScope | null>(() =>
+    resolveDefaultScope(principalType.value, store.defaults),
+)
+
+/**
+ * Which limit actually holds this principal.
+ *
+ * A row of the principal's own is a configuration — the server does not
+ * let the default stand in for it — so the panel says that the principal
+ * is governed by its own rows. A principal with no rows of its own is
+ * governed by the default, and the panel names the one that resolves. A
+ * principal with neither is not limited at all, and that is the case the
+ * default exists to prevent, so it is said loudly.
+ */
+const applies = computed<'own' | 'default' | 'none' | 'pending' | 'unknown'>(() => {
+    if (rows.value.length > 0) {
+        return 'own'
+    }
+    if (store.defaultsError !== null) {
+        return 'unknown'
+    }
+    if (!store.defaultsLoaded) {
+        return 'pending'
+    }
+    return defaultScope.value === null ? 'none' : 'default'
+})
+
+/**
+ * The default that governs this principal, named.
+ */
+const defaultLabel = computed(() => {
+    const scope = defaultScope.value
+    if (scope === 'user') {
+        return t('the default for users')
+    }
+    if (scope === 'group') {
+        return t('the default for groups')
+    }
+    return t('the general default')
+})
 
 /**
  * The body of the save: the limit rows without the figures the server
@@ -144,6 +201,15 @@ watch(
     },
     { immediate: true },
 )
+
+/**
+ * The defaults are read here rather than by the Defaults tab alone: this
+ * panel has to name the default that governs the principal it is showing.
+ * The store keeps the answer, so the tab that asks second asks nothing.
+ */
+onMounted(() => {
+    void store.loadDefaults(props.hostContext.api)
+})
 </script>
 
 <template>
@@ -224,6 +290,49 @@ watch(
                     </div>
                 </div>
             </section>
+
+            <!-- What actually governs this principal. The panel edits the
+                 principal's own rows, so without this the operator cannot
+                 tell whether the rows below are the whole truth or whether
+                 a default stands behind them. -->
+            <section
+                v-if="applies === 'own'"
+                class="rounded-lg border border-border bg-muted/40 p-4 text-sm"
+                data-testid="usage-limits-applies-own"
+            >
+                {{ t('The limits of this principal replace the default.') }}
+            </section>
+            <section
+                v-else-if="applies === 'default'"
+                class="rounded-lg border border-border bg-muted/40 p-4 text-sm"
+                data-testid="usage-limits-applies-default"
+            >
+                {{ t('This principal has no limits of its own, so {default} applies.', { default: defaultLabel }) }}
+            </section>
+            <!-- A principal nobody configured and nobody held to a default
+                 may spend without limit. That is the case the defaults
+                 exist to prevent, so it is not a quiet grey line. -->
+            <section
+                v-else-if="applies === 'none'"
+                class="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm font-medium text-destructive"
+                data-testid="usage-limits-applies-none"
+            >
+                {{ t('This principal has no limits of its own and no default is configured — it is not limited.') }}
+            </section>
+            <p
+                v-else-if="applies === 'pending'"
+                class="text-sm text-muted-foreground"
+                data-testid="usage-limits-applies-pending"
+            >
+                {{ t('Loading the defaults…') }}
+            </p>
+            <p
+                v-else
+                class="text-sm text-muted-foreground"
+                data-testid="usage-limits-applies-unknown"
+            >
+                {{ t('The defaults could not be loaded, so it is not known which limit applies: {error}', { error: store.defaultsError }) }}
+            </p>
 
             <section class="flex flex-col gap-3">
                 <div class="flex flex-wrap items-center justify-between gap-2">

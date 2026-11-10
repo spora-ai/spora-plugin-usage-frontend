@@ -7,6 +7,7 @@ import { useUsageStore } from './stores/usage'
 import UsageTabBar from './components/UsageTabBar.vue'
 import OverviewTab from './components/OverviewTab.vue'
 import LimitsTab from './components/LimitsTab.vue'
+import DefaultsTab from './components/DefaultsTab.vue'
 import BudgetTab from './components/BudgetTab.vue'
 import PricesTab from './components/PricesTab.vue'
 
@@ -80,6 +81,11 @@ watch(
                 />
                 <LimitsTab
                     v-else-if="store.activeTab === 'limits'"
+                    :host-context="hostContext"
+                    :id-prefix="idPrefix"
+                />
+                <DefaultsTab
+                    v-else-if="store.activeTab === 'defaults'"
                     :host-context="hostContext"
                     :id-prefix="idPrefix"
                 />

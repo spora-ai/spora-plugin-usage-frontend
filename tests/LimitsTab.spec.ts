@@ -29,6 +29,8 @@ const listingResponse = {
     ],
 }
 
+const emptyDefaults = { defaults: { all: [], user: [], group: [] } }
+
 function mountTab(options: HostOptions = {}, selectedPrincipalId: number | null = 12) {
     const host = buildHost({
         isAdmin: true,
@@ -36,6 +38,7 @@ function mountTab(options: HostOptions = {}, selectedPrincipalId: number | null 
         get: {
             '/usage/principals': () => listingResponse,
             '/usage/principals/12': () => detailResponse,
+            '/usage/defaults': () => emptyDefaults,
             ...options.get,
         },
         put: {
@@ -311,5 +314,178 @@ describe('LimitsTab', () => {
         expect(wrapper.find('[data-testid="usage-limits-error"]').exists()).toBe(false)
         expect(wrapper.text()).toContain('No limits are set.')
         expect(wrapper.findAll('[data-testid^="usage-limit-editor-"]')).toHaveLength(0)
+    })
+})
+
+describe('the limits that govern a principal', () => {
+    it('says that limits of its own replace the default', async () => {
+        const { wrapper } = mountTab()
+        await flushPromises()
+        await flushPromises()
+        expect(wrapper.find('[data-testid="usage-limits-applies-own"]').text()).toContain(
+            'The limits of this principal replace the default.',
+        )
+    })
+
+    it('counts a switched-off row of its own as a configuration', async () => {
+        const { wrapper } = mountTab({
+            get: {
+                '/usage/principals/12': () => ({
+                    ...detailResponse,
+                    limits: [{ ...detailResponse.limits[0], enabled: false }],
+                }),
+                '/usage/defaults': () => ({
+                    defaults: { all: [{ ...detailResponse.limits[0] }], user: [], group: [] },
+                }),
+            },
+        })
+        await flushPromises()
+        await flushPromises()
+        // The server does not let the default stand in for a row of the
+        // principal's own, whatever the row says.
+        expect(wrapper.find('[data-testid="usage-limits-applies-own"]').exists()).toBe(true)
+    })
+
+    it('names the default for users', async () => {
+        const { wrapper } = mountTab({
+            get: {
+                '/usage/principals/12': () => ({ ...detailResponse, limits: [] }),
+                '/usage/defaults': () => ({
+                    defaults: { all: [], user: [{ ...detailResponse.limits[0] }], group: [] },
+                }),
+            },
+        })
+        await flushPromises()
+        await flushPromises()
+        const banner = wrapper.find('[data-testid="usage-limits-applies-default"]')
+        expect(banner.text()).toContain('the default for users')
+    })
+
+    it('names the default for groups', async () => {
+        const { wrapper } = mountTab({
+            get: {
+                '/usage/principals/12': () => ({
+                    ...detailResponse,
+                    principal: { id: 12, type: 'group', name: 'Research' },
+                    limits: [],
+                }),
+                '/usage/defaults': () => ({
+                    defaults: { all: [], user: [], group: [{ ...detailResponse.limits[0] }] },
+                }),
+            },
+        })
+        await flushPromises()
+        await flushPromises()
+        const banner = wrapper.find('[data-testid="usage-limits-applies-default"]')
+        expect(banner.text()).toContain('the default for groups')
+    })
+
+    it('names the general default when the type has none of its own', async () => {
+        const { wrapper } = mountTab({
+            get: {
+                '/usage/principals/12': () => ({ ...detailResponse, limits: [] }),
+                '/usage/defaults': () => ({
+                    defaults: { all: [{ ...detailResponse.limits[0] }], user: [], group: [] },
+                }),
+            },
+        })
+        await flushPromises()
+        await flushPromises()
+        const banner = wrapper.find('[data-testid="usage-limits-applies-default"]')
+        expect(banner.text()).toContain('the general default')
+    })
+
+    it('says loudly that a principal with neither is not limited', async () => {
+        const { wrapper } = mountTab({
+            get: {
+                '/usage/principals/12': () => ({ ...detailResponse, limits: [] }),
+            },
+        })
+        await flushPromises()
+        await flushPromises()
+        const banner = wrapper.find('[data-testid="usage-limits-applies-none"]')
+        expect(banner.text()).toContain('it is not limited')
+        expect(banner.classes()).toContain('text-destructive')
+    })
+
+    it('waits for the defaults before it says what applies', async () => {
+        const { wrapper } = mountTab({
+            get: {
+                '/usage/principals/12': () => ({ ...detailResponse, limits: [] }),
+                '/usage/defaults': () => new Promise(() => {}),
+            },
+        })
+        await flushPromises()
+        await flushPromises()
+        expect(wrapper.find('[data-testid="usage-limits-applies-pending"]').exists()).toBe(true)
+        expect(wrapper.find('[data-testid="usage-limits-applies-none"]').exists()).toBe(false)
+    })
+
+    it('says that it does not know when the defaults cannot be read', async () => {
+        const { wrapper } = mountTab({
+            get: {
+                '/usage/principals/12': () => ({ ...detailResponse, limits: [] }),
+                '/usage/defaults': () => {
+                    throw new Error('Boom')
+                },
+            },
+        })
+        await flushPromises()
+        await flushPromises()
+        const banner = wrapper.find('[data-testid="usage-limits-applies-unknown"]')
+        expect(banner.text()).toContain('Boom')
+        expect(wrapper.find('[data-testid="usage-limits-applies-none"]').exists()).toBe(false)
+    })
+
+    it('takes the type from the listing when the principal read names none', async () => {
+        const { wrapper } = mountTab({
+            get: {
+                '/usage/principals': () => ({
+                    principals: [
+                        { id: 12, type: 'group', name: 'Research', balance: null, spend_30d: 0 },
+                    ],
+                }),
+                '/usage/principals/12': () => ({
+                    ...detailResponse,
+                    principal: { id: 12 },
+                    limits: [],
+                }),
+                '/usage/defaults': () => ({
+                    defaults: {
+                        all: [],
+                        user: [{ ...detailResponse.limits[0] }],
+                        group: [{ ...detailResponse.limits[0] }],
+                    },
+                }),
+            },
+        })
+        await flushPromises()
+        await flushPromises()
+        const banner = wrapper.find('[data-testid="usage-limits-applies-default"]')
+        expect(banner.text()).toContain('the default for groups')
+    })
+
+    it('reads a principal nobody can place as a user', async () => {
+        const { wrapper } = mountTab({
+            get: {
+                '/usage/principals': () => ({ principals: [] }),
+                '/usage/principals/12': () => ({
+                    ...detailResponse,
+                    principal: { id: 12 },
+                    limits: [],
+                }),
+                '/usage/defaults': () => ({
+                    defaults: {
+                        all: [],
+                        user: [{ ...detailResponse.limits[0] }],
+                        group: [{ ...detailResponse.limits[0] }],
+                    },
+                }),
+            },
+        })
+        await flushPromises()
+        await flushPromises()
+        const banner = wrapper.find('[data-testid="usage-limits-applies-default"]')
+        expect(banner.text()).toContain('the default for users')
     })
 })

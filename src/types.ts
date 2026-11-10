@@ -18,7 +18,7 @@ export type PriceKind = 'model' | 'tool'
 
 export type SeriesWindow = 'day' | 'week' | 'month'
 
-export type UsageTab = 'overview' | 'limits' | 'budget' | 'prices'
+export type UsageTab = 'overview' | 'limits' | 'defaults' | 'budget' | 'prices'
 
 /**
  * The fields of a limit row that the server stores.
@@ -66,6 +66,34 @@ export interface UsageLimit extends UsageLimitRow {
 export interface UsageLimitDraft extends UsageLimitRow {
     spend: number | null
     remaining: number | null
+}
+
+/**
+ * The scope of a default limit set.
+ *
+ * `all` is the set every principal falls back to; `user` and `group` are
+ * the sets for the principals of a user and of a group. A type's own set
+ * replaces the general one rather than adding to it.
+ */
+export type DefaultLimitScope = 'all' | 'user' | 'group'
+
+/**
+ * The default limit sets, one per scope.
+ *
+ * A set holds limit rows of the same shape the principal's own rows have,
+ * but without the figures: the server computes the spend per window and
+ * per principal, and a default governs principals nobody configured, so
+ * there is no spend of its own to report.
+ */
+export interface UsageDefaultLimits {
+    all: UsageLimitRow[]
+    user: UsageLimitRow[]
+    group: UsageLimitRow[]
+}
+
+/** The rows the server answers a default save with. */
+export interface UsageDefaultsResponse {
+    defaults: UsageDefaultLimits
 }
 
 /** A principal as the caller's own overview sees it. */

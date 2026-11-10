@@ -11,9 +11,11 @@
  */
 import type { PluginHostContext } from './shims'
 import type {
+    DefaultLimitScope,
     SeriesWindow,
     UnpricedModel,
     UnpricedTool,
+    UsageDefaultLimits,
     UsageLimitRow,
     UsagePrice,
     UsagePrincipal,
@@ -97,13 +99,63 @@ export const PRINCIPAL_FIXTURE: UsagePrincipal[] = [
             },
         ],
     },
+    {
+        // Nobody configured this principal, so the default governs it —
+        // the case the defaults exist for.
+        id: 78,
+        type: 'user',
+        name: 'Unconfigured User',
+        balance: null,
+        limits: [],
+    },
 ]
 
 export const SUMMARY_FIXTURE: UsagePrincipalSummary[] = [
     { id: 12, type: 'user', name: 'Ada Lovelace', balance: 250.5, spend_30d: 1234.5 },
     { id: 34, type: 'group', name: 'Research', balance: null, spend_30d: 87.25 },
     { id: 56, type: 'user', name: 'Grace Hopper', balance: 0, spend_30d: 0 },
+    { id: 78, type: 'user', name: 'Unconfigured User', balance: null, spend_30d: 0 },
 ]
+
+/**
+ * The default limit sets, one per scope.
+ *
+ * The general set is what a principal nobody configured falls back to, and
+ * the two type sets replace it — so the sandbox shows a user and a group
+ * governed by different defaults.
+ */
+export const DEFAULTS_FIXTURE: UsageDefaultLimits = {
+    all: [
+        {
+            window: 'month',
+            window_size: 1,
+            unit: 'credits',
+            cap: 1000,
+            mode: 'hard',
+            enabled: true,
+        },
+    ],
+    user: [
+        {
+            window: 'day',
+            window_size: 1,
+            unit: 'credits',
+            cap: 100,
+            mode: 'soft',
+            enabled: true,
+        },
+    ],
+    group: [
+        {
+            window: 'month',
+            window_size: 1,
+            unit: 'credits',
+            cap: 5000,
+            mode: 'hard',
+            enabled: true,
+        },
+    ],
+}
 
 export const PRICE_FIXTURE: UsagePrice[] = [
     {
@@ -138,6 +190,13 @@ export const PRICE_FIXTURE: UsagePrice[] = [
 export const USED_FIXTURE: UsageUnpriced = {
     models: [{ provider: 'openai_compatible', model: 'internal-preview', calls: 12 }],
     tools: [{ tool_class: String.raw`Spora\Tools\WeatherTool`, tool_name: 'weather', calls: 4 }],
+    not_billed: {
+        // A not-billed call had a price and was not charged: the
+        // principal ran it with their own configuration. So these carry a
+        // price row in the book below.
+        models: [{ provider: 'openai_compatible', model: 'gpt-4o', calls: 3, tokens: 340000 }],
+        tools: [{ tool_class: String.raw`Spora\Tools\MediaTool`, tool_name: 'media', calls: 2 }],
+    },
 }
 
 /**
@@ -213,6 +272,11 @@ export function createMockApi(): PluginHostContext['api'] {
     }))
     const summaries = SUMMARY_FIXTURE.map((summary) => ({ ...summary }))
     const prices = PRICE_FIXTURE.map((price) => ({ ...price }))
+    const defaults: UsageDefaultLimits = {
+        all: DEFAULTS_FIXTURE.all.map((row) => ({ ...row })),
+        user: DEFAULTS_FIXTURE.user.map((row) => ({ ...row })),
+        group: DEFAULTS_FIXTURE.group.map((row) => ({ ...row })),
+    }
 
     function findPrincipal(id: number): UsagePrincipal | undefined {
         return principals.find((principal) => principal.id === id)
@@ -229,6 +293,7 @@ export function createMockApi(): PluginHostContext['api'] {
             tools: USED_FIXTURE.tools.filter(
                 (tool) => !prices.some((price) => pricesTool(price, tool)),
             ),
+            not_billed: USED_FIXTURE.not_billed,
         }
     }
 
@@ -246,6 +311,9 @@ export function createMockApi(): PluginHostContext['api'] {
             }
             if (path === '/usage/prices') {
                 return { prices } as unknown as T
+            }
+            if (path === '/usage/defaults') {
+                return { defaults } as unknown as T
             }
             if (path === '/usage/unpriced') {
                 return unpricedAnswer() as unknown as T
@@ -325,6 +393,20 @@ export function createMockApi(): PluginHostContext['api'] {
                 prices.length = 0
                 prices.push(...payload.prices.map((price) => ({ ...price })))
                 return { prices } as unknown as T
+            }
+            if (path === '/usage/defaults') {
+                const payload = body as { defaults: Partial<UsageDefaultLimits> }
+                // A scope in the payload is replaced whole; a scope that is
+                // not in the payload is left as it is — the server's rule,
+                // so the sandbox shows what the server would store.
+                for (const scope of ['all', 'user', 'group'] as DefaultLimitScope[]) {
+                    const rows = payload.defaults[scope]
+                    if (rows === undefined) {
+                        continue
+                    }
+                    defaults[scope] = rows.map((row) => ({ ...row }))
+                }
+                return { defaults } as unknown as T
             }
             throw new Error(`Mock API has no handler for ${path}`)
         },
