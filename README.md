@@ -8,19 +8,24 @@ Pre-built Vue SPA for the Spora **Usage** app. Delivered as a Composer package o
 - Backend-only operators can `composer require spora-ai/spora-plugin-usage` without pulling in npm-buildable assets.
 - The bundle is independently testable in isolation (Vitest + the smoke script).
 
-## The five tabs
+## The four tabs, and the scope above them
 
 | Tab | Who | What it shows |
 | --- | --- | --- |
 | **Overview** | everyone | The caller's own principals: the credit balance, the limits with what is left of each window, and the spend over time. |
-| **Principals** | admin | Every principal, its balance and its 30-day spend. Clicking one scopes the Limits and Budget tabs. |
-| **Limits** | admin | The selected principal's limit rows — the window, the unit, the cap, the mode, whether it is on — and the spend-to-date in each window. Editable. |
-| **Budget** | admin | The selected principal's credit balance and a grant form. |
+| **Limits** | admin | The scoped principal's limit rows — the window, the unit, the cap, the mode, whether it is on — and the spend-to-date in each window. Editable. |
+| **Budget** | admin | The scoped principal's credit balance and a grant form. |
 | **Prices** | admin | The price book, and the unpriced models and tools. |
+
+**The scope is a dropdown beside the tabs**, and it is what the Limits and Budget tabs are about. It lists every principal on the installation with its balance and its 30-day spend, so the scope is visible from every tab — never hidden behind a trip to another one.
+
+The dropdown is an **admin** control, because the tabs it scopes are admin tabs. A caller who cannot configure anything is not offered a dropdown that scopes nothing.
 
 **The API is the gate.** The admin tabs hide themselves for a non-admin, but that is a courtesy: every admin route carries the admin middleware, and a 403 on an admin call sets the app's `adminDenied` flag, which hides the admin tabs and returns to Overview. A 403 is not retried.
 
 **A limit with no cap is a row that does not exist.** The editor adds and removes rows; there is no "cleared cap" state, because the backend's `cap` column is `NOT NULL` and a null would be a malformed request.
+
+**The price book offers what the installation knows.** The model and the tool of a price row are dropdowns, listing the models and the tools the install has used. Picking a model brings its provider with it, because the pair is the book's key. The free-text field stays beside the dropdown — a price for a model the installation has never used still has to be enterable.
 
 ## The API
 
