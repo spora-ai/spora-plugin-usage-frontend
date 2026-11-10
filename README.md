@@ -12,7 +12,7 @@ Pre-built Vue SPA for the Spora **Usage** app. Delivered as a Composer package o
 
 | Tab | Who | What it shows |
 | --- | --- | --- |
-| **Overview** | everyone | The caller's own principals: the credit balance, the limits with what is left of each window, and the spend over time. An admin also gets the install-wide face: what the installation spent, who spent it, which credit pools are empty, and which models and tools are used and cost nothing. |
+| **Overview** | everyone | The caller's own principals: the credit balance, the limits with what is left of each window, and the spend over time. An admin also gets the install-wide face: what the installation spent, who spent it, which credit pools are empty, which models and tools are used and cost nothing, and which calls had a price and were not billed. |
 | **Limits** | admin | The picked principal's limit rows — the window, the unit, the cap, the mode, whether it is on — and the spend-to-date in each window. Editable. |
 | **Budget** | admin | The picked principal's credit balance and a grant form. |
 | **Prices** | admin | The price book, and the unpriced models and tools. |
