@@ -21,6 +21,10 @@ const { t } = useI18n()
  * The admin tabs are listed last and only for an admin: the panel hides
  * them rather than offering a tab whose every call would be refused with a
  * 403.
+ *
+ * A segmented control rather than an underlined tab strip: the scope
+ * dropdown sits beside it in the same row, and a row of underlined tabs
+ * under a dropdown reads as two unrelated things.
  */
 const tabs = computed<{ id: UsageTab; label: string }[]>(() => {
     const visible: { id: UsageTab; label: string }[] = [{ id: 'overview', label: t('Overview') }]
@@ -28,7 +32,6 @@ const tabs = computed<{ id: UsageTab; label: string }[]>(() => {
         return visible
     }
     visible.push(
-        { id: 'principals', label: t('Principals') },
         { id: 'limits', label: t('Limits') },
         { id: 'budget', label: t('Budget') },
         { id: 'prices', label: t('Prices') },
@@ -39,8 +42,9 @@ const tabs = computed<{ id: UsageTab; label: string }[]>(() => {
 
 <template>
     <nav
-        class="flex flex-wrap items-center gap-1 border-b border-border"
+        class="flex flex-wrap items-center gap-0.5 rounded-lg bg-muted p-0.5"
         role="tablist"
+        :aria-label="t('Sections')"
         data-testid="usage-tab-bar"
     >
         <button
@@ -51,10 +55,10 @@ const tabs = computed<{ id: UsageTab; label: string }[]>(() => {
             role="tab"
             :aria-selected="tab.id === active"
             :aria-controls="`${idPrefix}-panel-${tab.id}`"
-            class="border-b-2 px-3 py-2 text-sm font-medium transition-colors"
+            class="rounded-md px-3 py-1.5 text-xs font-medium transition-colors"
             :class="tab.id === active
-                ? 'border-primary text-foreground'
-                : 'border-transparent text-muted-foreground hover:text-foreground'"
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'"
             :data-testid="`usage-tab-${tab.id}`"
             @click="emit('select', tab.id)"
         >

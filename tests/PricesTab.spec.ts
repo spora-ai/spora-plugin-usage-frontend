@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { flushPromises, mount } from '@vue/test-utils'
+import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { createPinia } from 'pinia'
 import PricesTab from '../src/components/PricesTab.vue'
 import { useUsageStore } from '../src/stores/usage'
@@ -44,6 +44,20 @@ function mountTab(options: HostOptions = {}) {
         global: { plugins: [pinia] },
     })
     return { wrapper, host, pinia }
+}
+
+/**
+ * The options a row's model dropdown offers.
+ *
+ * The options are read off the select itself: a wrapper-level descendant
+ * selector goes through the serialised HTML, and a select's `value` shows
+ * up there as an option of its own.
+ */
+function modelOptions(wrapper: VueWrapper, row = 0): string[] {
+    return wrapper
+        .find<HTMLSelectElement>(`[data-testid="usage-price-key-select-${row}"]`)
+        .findAll('option')
+        .map((option) => option.text())
 }
 
 describe('PricesTab', () => {
@@ -323,5 +337,47 @@ describe('PricesTab', () => {
         await wrapper.find('[data-testid="usage-prices-save"]').trigger('click')
         await flushPromises()
         expect(wrapper.findAll('[data-testid^="usage-price-editor-"]')).toHaveLength(0)
+    })
+
+    it('offers the models the installation knows, from the book and the unpriced report', async () => {
+        const { wrapper } = mountTab()
+        await flushPromises()
+        await flushPromises()
+
+        const options = modelOptions(wrapper)
+        // From the price book.
+        expect(options).toContain('openai_compatible / gpt-4o')
+        // From the unpriced report — the models that cost nothing.
+        expect(options).toContain('openai_compatible / internal-preview')
+    })
+
+    it('offers the tools the installation knows, from the book and the unpriced report', async () => {
+        const { wrapper } = mountTab()
+        await flushPromises()
+        await flushPromises()
+
+        await wrapper.find('[data-testid="usage-price-kind-0"]').setValue('tool')
+        await flushPromises()
+
+        const options = modelOptions(wrapper)
+        expect(options).toContain('weather')
+    })
+
+    it('does not offer an unfinished row as a model the installation knows', async () => {
+        // A row the operator has not filled in has no key, and it is not
+        // a model: offering it would put an empty entry in the list.
+        const { wrapper } = mountTab({
+            get: {
+                '/usage/prices': () => ({ prices: [] }),
+                '/usage/unpriced': () => ({ models: [], tools: [] }),
+            },
+        })
+        await flushPromises()
+        await flushPromises()
+
+        await wrapper.find('[data-testid="usage-prices-add"]').trigger('click')
+        await flushPromises()
+
+        expect(modelOptions(wrapper)).toEqual(['Other…'])
     })
 })

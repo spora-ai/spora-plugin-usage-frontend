@@ -14,7 +14,25 @@ const { t, locale } = useI18n()
 const store = useUsageStore()
 
 const principalId = computed(() => store.selectedPrincipalId)
-const principalName = ref<string | null>(null)
+
+/**
+ * The scope's name, for the panel's own heading.
+ *
+ * It comes from the scope dropdown's list, so the heading names the
+ * principal before the panel's own read has answered.
+ */
+const scopeName = computed(() => store.selectedPrincipal?.name ?? null)
+
+/** The name the panel's own read of the principal carries. */
+const detailName = ref<string | null>(null)
+
+/**
+ * The name on the principal card.
+ *
+ * The panel's own read is the authority on who this is; the scope's name
+ * is the fallback for the moment before the read has answered.
+ */
+const principalName = computed(() => detailName.value ?? scopeName.value ?? null)
 const balance = ref<number | null>(null)
 const amount = ref<number | null>(null)
 const note = ref('')
@@ -40,7 +58,7 @@ async function load(id: number): Promise<void> {
     granted.value = false
     try {
         const response = await props.hostContext.api.get<UsagePrincipalDetail>(principalPath(id))
-        principalName.value = response.principal.name
+        detailName.value = response.principal.name
         balance.value = response.balance
     } catch (e) {
         if (isForbidden(e)) {
@@ -48,7 +66,7 @@ async function load(id: number): Promise<void> {
             return
         }
         loadError.value = messageOf(e)
-        principalName.value = null
+        detailName.value = null
         balance.value = null
     } finally {
         loading.value = false
@@ -112,7 +130,6 @@ function setNote(event: Event): void {
 watch(
     principalId,
     (id) => {
-        principalName.value = null
         balance.value = null
         granted.value = false
         if (id === null) {
@@ -129,7 +146,11 @@ watch(
         <header class="flex flex-col gap-1">
             <h2 class="text-lg font-semibold">{{ t('Budget') }}</h2>
             <p class="text-sm text-muted-foreground">
-                {{ t('The credit balance of the selected principal, and the grants that moved it.') }}
+                <!-- The scope is named here as well as in the dropdown: this
+                     panel is about one principal, and the operator should
+                     not have to look up to know which one. -->
+                <span v-if="scopeName">{{ t('The credit balance of {name}, and the grants that moved it.', { name: scopeName }) }}</span>
+                <span v-else>{{ t('The credit balance of the selected principal, and the grants that moved it.') }}</span>
             </p>
         </header>
 
@@ -138,7 +159,7 @@ watch(
             class="rounded-lg border border-border p-4 text-sm text-muted-foreground"
             data-testid="usage-budget-no-principal"
         >
-            {{ t('Pick a principal in the Principals tab first.') }}
+            {{ t('Choose a principal above to see its balance.') }}
         </div>
         <div
             v-else-if="loading"

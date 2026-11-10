@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
 import PriceRowEditor from '../src/components/PriceRowEditor.vue'
-import type { UsagePrice } from '../src/types'
+import type { UsageKnownModel, UsageKnownTool, UsagePrice } from '../src/types'
 
 const price: UsagePrice = {
     kind: 'model',
@@ -14,9 +14,25 @@ const price: UsagePrice = {
     call_price: 0,
 }
 
+const KNOWN_MODELS: UsageKnownModel[] = [
+    { provider: 'openai_compatible', model: 'gpt-4o' },
+    { provider: 'anthropic', model: 'claude-sonnet' },
+]
+
+const KNOWN_TOOLS: UsageKnownTool[] = [
+    { tool_class: 'Spora\\Tools\\MediaTool', tool_name: 'media' },
+]
+
 function mountEditor(overrides: Partial<UsagePrice> = {}, index = 0) {
     return mount(PriceRowEditor, {
-        props: { price: { ...price, ...overrides }, index, locale: 'en', idPrefix: 'usage' },
+        props: {
+            price: { ...price, ...overrides },
+            index,
+            locale: 'en',
+            idPrefix: 'usage',
+            knownModels: KNOWN_MODELS,
+            knownTools: KNOWN_TOOLS,
+        },
     })
 }
 
@@ -35,20 +51,18 @@ describe('PriceRowEditor', () => {
     it('changes the kind of the row', async () => {
         const wrapper = mountEditor()
         await wrapper.find('[data-testid="usage-price-kind-0"]').setValue('tool')
-        expect(changedRow(wrapper)).toEqual({ ...price, kind: 'tool' })
+        expect(changedRow(wrapper)).toEqual({ ...price, kind: 'tool', provider: '' })
     })
 
     it('offers the operation for a tool only', async () => {
         const wrapper = mountEditor()
         expect(wrapper.find('[data-testid="usage-price-operation-0"]').exists()).toBe(false)
         expect(wrapper.find('label[for="usage-price-operation-0"]').exists()).toBe(false)
-        expect(wrapper.text()).toContain('Not applicable')
 
         await wrapper.find('[data-testid="usage-price-kind-0"]').setValue('tool')
 
         expect(wrapper.find('[data-testid="usage-price-operation-0"]').exists()).toBe(true)
         expect(wrapper.find('label[for="usage-price-operation-0"]').exists()).toBe(true)
-        expect(wrapper.text()).not.toContain('Not applicable')
     })
 
     it('offers the call price for a tool only', async () => {
@@ -62,16 +76,132 @@ describe('PriceRowEditor', () => {
         expect(wrapper.find('label[for="usage-price-call-0"]').exists()).toBe(true)
     })
 
+    it('offers the provider for a model only', async () => {
+        // The server refuses a provider on a tool price, so the field is
+        // not offered where it cannot be stored.
+        const wrapper = mountEditor()
+        expect(wrapper.find('[data-testid="usage-price-provider-0"]').exists()).toBe(true)
+
+        await wrapper.find('[data-testid="usage-price-kind-0"]').setValue('tool')
+
+        expect(wrapper.find('[data-testid="usage-price-provider-0"]').exists()).toBe(false)
+    })
+
+    it('clears the field the new kind cannot store', async () => {
+        const wrapper = mountEditor()
+        await wrapper.find('[data-testid="usage-price-kind-0"]').setValue('tool')
+        expect(changedRow(wrapper)).toEqual({ ...price, kind: 'tool', provider: '' })
+
+        const tool = mountEditor({ kind: 'tool', operation: 'render' })
+        await tool.find('[data-testid="usage-price-kind-0"]').setValue('model')
+        expect(changedRow(tool)).toEqual({ ...price, kind: 'model', operation: '' })
+    })
+
     it('sends the provider the operator typed', async () => {
         const wrapper = mountEditor()
         await wrapper.find('[data-testid="usage-price-provider-0"]').setValue('anthropic')
         expect(changedRow(wrapper)).toEqual({ ...price, provider: 'anthropic' })
     })
 
+    it('offers the models the installation knows', () => {
+        const wrapper = mountEditor()
+        const options = wrapper
+            .findAll('[data-testid="usage-price-key-select-0"] option')
+            .map((option) => option.text())
+
+        expect(options).toContain('openai_compatible / gpt-4o')
+        expect(options).toContain('anthropic / claude-sonnet')
+        expect(options).toContain('Other…')
+    })
+
+    it('fills the row from the model that was picked', async () => {
+        const wrapper = mountEditor({ provider: '', key: '' })
+        const option = wrapper
+            .find<HTMLSelectElement>('[data-testid="usage-price-key-select-0"]')
+            .findAll('option')
+            .find((candidate) => candidate.text() === 'anthropic / claude-sonnet')
+
+        await wrapper
+            .find('[data-testid="usage-price-key-select-0"]')
+            .setValue(option?.element.value)
+
+        expect(changedRow(wrapper)).toEqual({ ...price, provider: 'anthropic', key: 'claude-sonnet' })
+    })
+
+    it('offers the tools the installation knows, for a tool row', async () => {
+        const wrapper = mountEditor({ kind: 'tool' })
+        const options = wrapper
+            .findAll('[data-testid="usage-price-key-select-0"] option')
+            .map((option) => option.text())
+
+        expect(options).toContain('media')
+        expect(options).not.toContain('openai_compatible / gpt-4o')
+    })
+
+    it('fills the row with the class of the tool that was picked', async () => {
+        const wrapper = mountEditor({ kind: 'tool', key: '' })
+        const option = wrapper
+            .find<HTMLSelectElement>('[data-testid="usage-price-key-select-0"]')
+            .findAll('option')
+            .find((candidate) => candidate.text() === 'media')
+
+        await wrapper
+            .find('[data-testid="usage-price-key-select-0"]')
+            .setValue(option?.element.value)
+
+        expect(changedRow(wrapper)).toEqual({
+            ...price,
+            kind: 'tool',
+            provider: '',
+            key: 'Spora\\Tools\\MediaTool',
+        })
+    })
+
     it('sends the key the operator typed', async () => {
         const wrapper = mountEditor()
         await wrapper.find('[data-testid="usage-price-key-0"]').setValue('claude-sonnet')
         expect(changedRow(wrapper)).toEqual({ ...price, key: 'claude-sonnet' })
+    })
+
+    it('always offers the free-text field, so a price for something unused can be entered', () => {
+        // The dropdown is a shortcut that fills the field, not a gate in
+        // front of it: a model the installation has never used still has
+        // to be enterable.
+        const wrapper = mountEditor()
+        expect(wrapper.find('[data-testid="usage-price-key-0"]').exists()).toBe(true)
+    })
+
+    it('shows the row\'s own key in the dropdown when the installation does not know it', () => {
+        // A dropdown whose value matches no option renders blank, and a
+        // row that looks empty is a row whose price the operator cannot
+        // see.
+        const wrapper = mountEditor({ key: 'a-model-nobody-used' })
+        const options = wrapper
+            .find<HTMLSelectElement>('[data-testid="usage-price-key-select-0"]')
+            .findAll('option')
+            .map((option) => option.text())
+
+        expect(options).toContain('a-model-nobody-used')
+        expect(
+            wrapper.find<HTMLSelectElement>('[data-testid="usage-price-key-select-0"]').element
+                .value,
+        ).not.toBe('__custom__')
+    })
+
+    it('shows the dropdown on the known option for a key the installation knows', () => {
+        const wrapper = mountEditor()
+        const selected = wrapper.find<HTMLSelectElement>(
+            '[data-testid="usage-price-key-select-0"]',
+        ).element.value
+        expect(selected).not.toBe('__custom__')
+    })
+
+    it('leaves the row alone when the operator picks "Other…"', async () => {
+        // "Other…" is what a key the installation does not know looks
+        // like; the field below is where the operator types it.
+        const wrapper = mountEditor()
+        await wrapper.find('[data-testid="usage-price-key-select-0"]').setValue('__custom__')
+        expect(wrapper.emitted('change')).toBeUndefined()
     })
 
     it('sends the operation the operator typed', async () => {

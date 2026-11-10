@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import type { PriceKind, UsagePrice } from '../types'
+import type { PriceKind, UsageKnownModel, UsageKnownTool, UsagePrice } from '../types'
 import { formatExactPrice, formatPricePerMillion } from '../lib/format'
 import { inputNumberOrZero } from '../lib/inputs'
 
@@ -10,6 +10,8 @@ const props = defineProps<{
     index: number
     locale: string
     idPrefix: string
+    knownModels: UsageKnownModel[]
+    knownTools: UsageKnownTool[]
 }>()
 
 const emit = defineEmits<{
@@ -25,13 +27,16 @@ const priceFields = ['input_price', 'output_price', 'cached_price', 'call_price'
 
 type PriceField = (typeof priceFields)[number]
 
+/** The option that means "the operator will type the key themselves". */
+const CUSTOM = '__custom__'
+
 const draft = ref<UsagePrice>({ ...props.price })
 
 /**
  * The text of each price field, apart from the number the row carries.
  *
  * A number field cannot hold the price the operator is typing: "0.000002"
- * parses as 0 until the last digit is there, and a field bound to that
+ * parses to 0 until the last digit is there, and a field bound to that
  * number is rewritten under the cursor. The text is therefore the field's
  * own, and the parsed number is what the row hands back.
  */
@@ -58,12 +63,110 @@ watch(
     },
 )
 
+/**
+ * The models and tools the installation knows about.
+ *
+ * A model's identity is the pair — the price book keys it on the provider
+ * *and* the name — so the option carries both. A tool's identity is its
+ * class, which is what the book keys it on; the wire name is only a label.
+ */
+const knownOptions = computed<{ value: string; label: string; title: string }[]>(() => {
+    const options: { value: string; label: string; title: string }[] =
+        draft.value.kind === 'tool'
+            ? props.knownTools.map((tool) => ({
+                  value: tool.tool_class,
+                  label: tool.tool_name,
+                  title: tool.tool_class,
+              }))
+            : props.knownModels.map((model) => ({
+                  value: JSON.stringify({ provider: model.provider, model: model.model }),
+                  label:
+                      model.provider === '' ? model.model : `${model.provider} / ${model.model}`,
+                  title: model.model,
+              }))
+
+    // The row's own value, when the installation does not know it. A
+    // dropdown whose value matches no option renders blank, and a row
+    // that looks empty is a row whose price the operator cannot see.
+    if (
+        draft.value.key !== '' &&
+        !options.some((option) => option.value === currentOption.value)
+    ) {
+        options.push({
+            value: currentOption.value,
+            label: draft.value.key,
+            title: draft.value.key,
+        })
+    }
+
+    return options
+})
+
+/** The option that matches what the row currently carries. */
+const currentOption = computed(() => {
+    if (draft.value.kind === 'tool') {
+        return draft.value.key
+    }
+    return JSON.stringify({ provider: draft.value.provider, model: draft.value.key })
+})
+
+/**
+ * The dropdown's value.
+ *
+ * The free-text field is always there, so the dropdown is a shortcut that
+ * fills it rather than a gate in front of it: the option that matches the
+ * key is the one shown, and "Other…" is what a key the installation does
+ * not know looks like.
+ */
+const selectedOption = computed(() => {
+    const known = knownOptions.value.some((option) => option.value === currentOption.value)
+    return known ? currentOption.value : CUSTOM
+})
+
 function commit(): void {
     emit('change', { ...draft.value })
 }
 
 function setKind(event: Event): void {
-    draft.value.kind = (event.target as HTMLSelectElement).value as PriceKind
+    const kind = (event.target as HTMLSelectElement).value as PriceKind
+    draft.value.kind = kind
+
+    // The server refuses a provider on a tool price and an operation on a
+    // model price, so the two columns that do not apply are cleared rather
+    // than left to make the save fail.
+    if (kind === 'tool') {
+        draft.value.provider = ''
+    } else {
+        draft.value.operation = ''
+    }
+
+    commit()
+}
+
+/**
+ * Fill the row from the option that was picked.
+ *
+ * A model brings its provider with it — the pair is the book's key — and
+ * a tool is keyed on its class, which the wire name does not carry.
+ */
+function chooseOption(event: Event): void {
+    const value = (event.target as HTMLSelectElement).value
+
+    if (value === CUSTOM) {
+        // "Other…" is what a key the installation does not know looks
+        // like; the field below is where the operator types it.
+        return
+    }
+
+    if (draft.value.kind === 'tool') {
+        draft.value.key = value
+        draft.value.provider = ''
+    } else {
+        const picked = JSON.parse(value) as { provider: string; model: string }
+        draft.value.provider = picked.provider
+        draft.value.key = picked.model
+    }
+
     commit()
 }
 
@@ -112,12 +215,14 @@ function setPrice(field: PriceField, event: Event): void {
         </td>
         <td class="py-2 pr-2">
             <label
+                v-if="draft.kind === 'model'"
                 class="sr-only"
                 :for="`${idPrefix}-price-provider-${index}`"
             >
                 {{ t('Provider') }}
             </label>
             <input
+                v-if="draft.kind === 'model'"
                 :id="`${idPrefix}-price-provider-${index}`"
                 type="text"
                 class="w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
@@ -126,19 +231,42 @@ function setPrice(field: PriceField, event: Event): void {
                 :data-testid="`usage-price-provider-${index}`"
                 @input="setText('provider', $event)"
             >
+            <span v-else class="text-xs text-muted-foreground">{{ t('Not applicable') }}</span>
         </td>
         <td class="py-2 pr-2">
             <label
                 class="sr-only"
                 :for="`${idPrefix}-price-key-${index}`"
             >
-                {{ t('Key') }}
+                {{ t('Model or tool') }}
             </label>
+            <select
+                :id="`${idPrefix}-price-key-${index}`"
+                class="w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
+                :value="selectedOption"
+                :data-testid="`usage-price-key-select-${index}`"
+                @change="chooseOption"
+            >
+                <option
+                    v-for="option in knownOptions"
+                    :key="option.value"
+                    :value="option.value"
+                    :title="option.title"
+                >
+                    {{ option.label }}
+                </option>
+                <option :value="CUSTOM">
+                    {{ t('Other…') }}
+                </option>
+            </select>
+            <!-- The free-text field is always there: the dropdown is a
+                 shortcut that fills it, not a gate in front of it. -->
             <input
                 :id="`${idPrefix}-price-key-${index}`"
                 type="text"
-                class="w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
+                class="mt-1 w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
                 :value="draft.key"
+                :placeholder="draft.kind === 'tool' ? t('Tool class') : t('Model name')"
                 :data-testid="`usage-price-key-${index}`"
                 @input="setText('key', $event)"
             >

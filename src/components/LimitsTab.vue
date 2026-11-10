@@ -30,6 +30,14 @@ const saved = ref(false)
 const principalId = computed(() => store.selectedPrincipalId)
 
 /**
+ * The scope's name, for the panel's own heading.
+ *
+ * It comes from the scope dropdown's list, so the heading names the
+ * principal before the panel's own read has answered.
+ */
+const scopeName = computed(() => store.selectedPrincipal?.name ?? null)
+
+/**
  * The body of the save: the limit rows without the figures the server
  * computed. The server replaces the whole set, so what the panel does not
  * send is what the principal no longer has.
@@ -142,7 +150,11 @@ watch(
         <header class="flex flex-col gap-1">
             <h2 class="text-lg font-semibold">{{ t('Limits') }}</h2>
             <p class="text-sm text-muted-foreground">
-                {{ t('The limits of the selected principal, and what each window has spent so far.') }}
+                <!-- The scope is named here as well as in the dropdown: this
+                     panel is about one principal, and the operator should
+                     not have to look up to know which one. -->
+                <span v-if="scopeName">{{ t('The limits of {name}, and what each window has spent so far.', { name: scopeName }) }}</span>
+                <span v-else>{{ t('The limits of the selected principal, and what each window has spent so far.') }}</span>
             </p>
         </header>
 
@@ -151,7 +163,7 @@ watch(
             class="rounded-lg border border-border p-4 text-sm text-muted-foreground"
             data-testid="usage-limits-no-principal"
         >
-            {{ t('Pick a principal in the Principals tab first.') }}
+            {{ t('Choose a principal above to see its limits.') }}
         </div>
         <div
             v-else-if="loading"
@@ -178,7 +190,7 @@ watch(
                         class="font-medium"
                         data-testid="usage-limits-principal"
                     >
-                        {{ detail?.principal.name ?? `#${principalId}` }}
+                        {{ detail?.principal.name ?? scopeName ?? `#${principalId}` }}
                     </span>
                 </div>
                 <div class="flex flex-wrap gap-6">

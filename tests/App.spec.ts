@@ -42,6 +42,13 @@ const seriesResponse = {
     ],
 }
 
+const scopeResponse = {
+    principals: [
+        { id: 12, type: 'user', name: 'Ada Lovelace', balance: 250.5, spend_30d: 1234.5 },
+        { id: 34, type: 'group', name: 'Research', balance: null, spend_30d: 87.25 },
+    ],
+}
+
 function mountApp(options: HostOptions = {}): {
     wrapper: VueWrapper
     host: ReturnType<typeof buildHost>
@@ -52,6 +59,7 @@ function mountApp(options: HostOptions = {}): {
         get: {
             '/usage/me': () => meResponse,
             '/usage/me/series?window=day': () => seriesResponse,
+            '/usage/principals': () => scopeResponse,
             ...options.get,
         },
     })
@@ -84,7 +92,6 @@ describe('App.vue', () => {
         const { wrapper } = mountApp({ isAdmin: false })
         await flushPromises()
         expect(wrapper.find('[data-testid="usage-tab-overview"]').exists()).toBe(true)
-        expect(wrapper.find('[data-testid="usage-tab-principals"]').exists()).toBe(false)
         expect(wrapper.find('[data-testid="usage-tab-limits"]').exists()).toBe(false)
         expect(wrapper.find('[data-testid="usage-tab-budget"]').exists()).toBe(false)
         expect(wrapper.find('[data-testid="usage-tab-prices"]').exists()).toBe(false)
@@ -93,20 +100,52 @@ describe('App.vue', () => {
     it('offers the admin tabs to an admin', async () => {
         const { wrapper } = mountApp({ isAdmin: true })
         await flushPromises()
-        for (const tab of ['overview', 'principals', 'limits', 'budget', 'prices']) {
+        for (const tab of ['overview', 'limits', 'budget', 'prices']) {
             expect(wrapper.find(`[data-testid="usage-tab-${tab}"]`).exists()).toBe(true)
         }
     })
 
+    it('offers the admin the scope dropdown, and loads its principals', async () => {
+        const { wrapper, host, pinia } = mountApp({ isAdmin: true })
+        await flushPromises()
+        await flushPromises()
+
+        expect(wrapper.find('[data-testid="usage-principal-scope"]').exists()).toBe(true)
+        expect(host.api.get).toHaveBeenCalledWith('/usage/principals')
+        expect(useUsageStore(pinia).principals).toHaveLength(2)
+    })
+
+    it('keeps the scope out of the way of a caller who cannot configure anything', async () => {
+        const { wrapper, host } = mountApp({ isAdmin: false })
+        await flushPromises()
+        await flushPromises()
+
+        expect(wrapper.find('[data-testid="usage-principal-scope"]').exists()).toBe(false)
+        // The admin listing is not asked for: it would be refused.
+        expect(host.api.get).not.toHaveBeenCalledWith('/usage/principals')
+    })
+
+    it('scopes the admin tabs from the dropdown, without a trip to another tab', async () => {
+        const { wrapper, pinia } = mountApp({ isAdmin: true })
+        await flushPromises()
+        await flushPromises()
+
+        await wrapper.find('[data-testid="usage-1-scope-toggle"]').trigger('click')
+        await flushPromises()
+        await wrapper.find('[data-testid="usage-1-scope-option-34"]').trigger('click')
+        await flushPromises()
+
+        expect(useUsageStore(pinia).selectedPrincipalId).toBe(34)
+        // The scope is still on screen while the operator works on it.
+        expect(wrapper.find('[data-testid="usage-1-scope-toggle"]').text()).toContain('Research')
+    })
+
     it('opens the tab that was picked', async () => {
-        const { wrapper } = mountApp({
-            isAdmin: true,
-            get: { '/usage/principals': () => ({ principals: [] }) },
-        })
+        const { wrapper } = mountApp({ isAdmin: true })
         await flushPromises()
-        await wrapper.find('[data-testid="usage-tab-principals"]').trigger('click')
+        await wrapper.find('[data-testid="usage-tab-limits"]').trigger('click')
         await flushPromises()
-        expect(wrapper.find('[data-testid="usage-panel-principals"]').exists()).toBe(true)
+        expect(wrapper.find('[data-testid="usage-panel-limits"]').exists()).toBe(true)
         expect(wrapper.find('[data-testid="usage-panel-overview"]').exists()).toBe(false)
     })
 
@@ -120,12 +159,10 @@ describe('App.vue', () => {
             },
         })
         await flushPromises()
-        await wrapper.find('[data-testid="usage-tab-principals"]').trigger('click')
-        await flushPromises()
         await flushPromises()
         // A 403 is the server's answer, not a failure to retry: the admin
         // tabs disappear and the panel falls back to the Overview.
-        expect(wrapper.find('[data-testid="usage-tab-principals"]').exists()).toBe(false)
+        expect(wrapper.find('[data-testid="usage-tab-limits"]').exists()).toBe(false)
         expect(wrapper.find('[data-testid="usage-panel-overview"]').exists()).toBe(true)
     })
 
@@ -147,13 +184,12 @@ describe('App.vue', () => {
         const { wrapper } = mountApp({
             isAdmin: true,
             get: {
-                '/usage/principals': () => ({ principals: [] }),
                 '/usage/prices': () => ({ prices: [] }),
                 '/usage/unpriced': () => ({ models: [], tools: [] }),
             },
         })
         await flushPromises()
-        for (const tab of ['principals', 'limits', 'budget', 'prices']) {
+        for (const tab of ['limits', 'budget', 'prices']) {
             await wrapper.find(`[data-testid="usage-tab-${tab}"]`).trigger('click')
             await flushPromises()
             expect(wrapper.find(`[data-testid="usage-panel-${tab}"]`).exists()).toBe(true)
@@ -172,11 +208,25 @@ describe('App.vue', () => {
         expect(wrapper.find('[data-testid="usage-panel-overview"]').exists()).toBe(true)
     })
 
+    it('falls back to the Overview when the caller stops being an admin on an admin tab', async () => {
+        const { wrapper, pinia } = mountApp({ isAdmin: true })
+        await flushPromises()
+        await wrapper.find('[data-testid="usage-tab-prices"]').trigger('click')
+        await flushPromises()
+        expect(wrapper.find('[data-testid="usage-panel-prices"]').exists()).toBe(true)
+
+        // The API refuses an admin call: the admin tabs disappear, and the
+        // panel has to land somewhere the caller may read.
+        useUsageStore(pinia).markAdminDenied()
+        await flushPromises()
+
+        expect(wrapper.find('[data-testid="usage-panel-overview"]').exists()).toBe(true)
+    })
+
     it('wires the panel to the tab that opened it', async () => {
         const { wrapper } = mountApp({
             isAdmin: true,
             get: {
-                '/usage/principals': () => ({ principals: [] }),
                 '/usage/prices': () => ({ prices: [] }),
                 '/usage/unpriced': () => ({ models: [], tools: [] }),
             },

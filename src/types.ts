@@ -18,7 +18,7 @@ export type PriceKind = 'model' | 'tool'
 
 export type SeriesWindow = 'day' | 'week' | 'month'
 
-export type UsageTab = 'overview' | 'principals' | 'limits' | 'budget' | 'prices'
+export type UsageTab = 'overview' | 'limits' | 'budget' | 'prices'
 
 /**
  * The fields of a limit row that the server stores.
@@ -132,6 +132,28 @@ export interface UsagePrice {
     output_price: number
     cached_price: number
     call_price: number
+}
+
+/**
+ * A model the installation knows about.
+ *
+ * The pair is the model's identity — the price book keys it on the
+ * provider *and* the name — so both travel together.
+ */
+export interface UsageKnownModel {
+    provider: string
+    model: string
+}
+
+/**
+ * A tool the installation knows about.
+ *
+ * The class is the tool's identity: the wire name changes between plugin
+ * releases and the class does not.
+ */
+export interface UsageKnownTool {
+    tool_class: string
+    tool_name: string
 }
 
 /** A model that was used and has no price row: it cost nothing, silently. */

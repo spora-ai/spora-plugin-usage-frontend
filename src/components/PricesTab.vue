@@ -1,8 +1,14 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { PluginHostContext } from '../shims'
-import type { UsagePrice, UsagePricesResponse, UsageUnpriced } from '../types'
+import type {
+    UsageKnownModel,
+    UsageKnownTool,
+    UsagePrice,
+    UsagePricesResponse,
+    UsageUnpriced,
+} from '../types'
 import { pricesPath, unpricedPath } from '../lib/usage-api'
 import { isForbidden, messageOf } from '../lib/errors'
 import { formatTokens } from '../lib/format'
@@ -60,6 +66,66 @@ async function load(): Promise<void> {
 function updateRow(index: number, price: UsagePrice): void {
     prices.value = prices.value.map((row, position) => (position === index ? price : row))
 }
+
+/**
+ * The models the installation knows about.
+ *
+ * Two sources, and together they are the whole set: a model with a price
+ * row is in the book, and a model without one is in the unpriced report.
+ * A model in neither has never been used here — the operator can still
+ * enter it, but the dropdown does not offer what the installation has
+ * never seen.
+ */
+const knownModels = computed<UsageKnownModel[]>(() => {
+    const found = new Map<string, UsageKnownModel>()
+
+    for (const price of prices.value) {
+        if (price.kind !== 'model' || price.key === '') {
+            // A row with no key is a row the operator has not filled in, not
+            // a model the installation uses.
+            continue
+        }
+        found.set(JSON.stringify([price.provider, price.key]), {
+            provider: price.provider,
+            model: price.key,
+        })
+    }
+
+    for (const model of unpriced.value.models) {
+        found.set(JSON.stringify([model.provider, model.model]), {
+            provider: model.provider,
+            model: model.model,
+        })
+    }
+
+    return [...found.values()].sort((a, b) => a.model.localeCompare(b.model))
+})
+
+/**
+ * The tools the installation knows about.
+ *
+ * The book keys a tool on its class, and the unpriced report names it, so
+ * the class is what the option carries and the wire name is the label.
+ */
+const knownTools = computed<UsageKnownTool[]>(() => {
+    const found = new Map<string, UsageKnownTool>()
+
+    for (const price of prices.value) {
+        if (price.kind !== 'tool' || price.key === '') {
+            continue
+        }
+        found.set(price.key, { tool_class: price.key, tool_name: price.key })
+    }
+
+    for (const tool of unpriced.value.tools) {
+        found.set(tool.tool_class, {
+            tool_class: tool.tool_class,
+            tool_name: tool.tool_name,
+        })
+    }
+
+    return [...found.values()].sort((a, b) => a.tool_name.localeCompare(b.tool_name))
+})
 
 /**
  * The unpriced report, read again.
@@ -173,7 +239,7 @@ onMounted(() => {
                             <tr class="border-b border-border text-xs uppercase tracking-wide text-muted-foreground">
                                 <th class="py-2 pr-2 font-medium">{{ t('Kind') }}</th>
                                 <th class="py-2 pr-2 font-medium">{{ t('Provider') }}</th>
-                                <th class="py-2 pr-2 font-medium">{{ t('Key') }}</th>
+                                <th class="py-2 pr-2 font-medium">{{ t('Model or tool') }}</th>
                                 <th class="py-2 pr-2 font-medium">{{ t('Operation') }}</th>
                                 <th class="py-2 pr-2 text-right font-medium">{{ t('Input') }}</th>
                                 <th class="py-2 pr-2 text-right font-medium">{{ t('Output') }}</th>
@@ -190,6 +256,8 @@ onMounted(() => {
                                 :index="index"
                                 :locale="locale"
                                 :id-prefix="idPrefix"
+                                :known-models="knownModels"
+                                :known-tools="knownTools"
                                 @change="updateRow(index, $event)"
                                 @remove="removeRow(index)"
                             />
