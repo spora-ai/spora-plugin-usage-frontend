@@ -234,7 +234,11 @@ onMounted(() => {
                 </p>
 
                 <div class="overflow-x-auto">
-                    <table class="w-full text-left text-sm">
+                    <!-- A minimum width, so the table scrolls rather than
+                         squeezing its columns: a select that is narrower
+                         than its longest option clips the text, and a
+                         clipped "Model" reads as "Mode". -->
+                    <table class="w-full min-w-[1180px] text-left text-sm">
                         <thead>
                             <tr class="border-b border-border text-xs uppercase tracking-wide text-muted-foreground">
                                 <th class="py-2 pr-2 font-medium">{{ t('Kind') }}</th>

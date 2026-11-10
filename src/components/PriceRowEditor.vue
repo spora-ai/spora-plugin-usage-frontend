@@ -199,7 +199,7 @@ function setPrice(field: PriceField, event: Event): void {
             </label>
             <select
                 :id="`${idPrefix}-price-kind-${index}`"
-                class="w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
+                class="w-full min-w-[5.5rem] rounded-md border border-border bg-background px-2 py-1 text-sm"
                 :value="draft.kind"
                 :data-testid="`usage-price-kind-${index}`"
                 @change="setKind"
@@ -242,7 +242,7 @@ function setPrice(field: PriceField, event: Event): void {
             </label>
             <select
                 :id="`${idPrefix}-price-key-${index}`"
-                class="w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
+                class="w-full min-w-[15rem] rounded-md border border-border bg-background px-2 py-1 text-sm"
                 :value="selectedOption"
                 :data-testid="`usage-price-key-select-${index}`"
                 @change="chooseOption"
