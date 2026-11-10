@@ -51,7 +51,7 @@ describe('PriceRowEditor', () => {
     it('changes the kind of the row', async () => {
         const wrapper = mountEditor()
         await wrapper.find('[data-testid="usage-price-kind-0"]').setValue('tool')
-        expect(changedRow(wrapper)).toEqual({ ...price, kind: 'tool', provider: '' })
+        expect(changedRow(wrapper)).toEqual({ ...price, kind: 'tool', provider: '', key: '' })
     })
 
     it('offers the operation for a tool only', async () => {
@@ -90,11 +90,34 @@ describe('PriceRowEditor', () => {
     it('clears the field the new kind cannot store', async () => {
         const wrapper = mountEditor()
         await wrapper.find('[data-testid="usage-price-kind-0"]').setValue('tool')
-        expect(changedRow(wrapper)).toEqual({ ...price, kind: 'tool', provider: '' })
+        expect(changedRow(wrapper)).toEqual({ ...price, kind: 'tool', provider: '', key: '' })
 
         const tool = mountEditor({ kind: 'tool', operation: 'render' })
         await tool.find('[data-testid="usage-price-kind-0"]').setValue('model')
-        expect(changedRow(tool)).toEqual({ ...price, kind: 'model', operation: '' })
+        expect(changedRow(tool)).toEqual({ ...price, kind: 'model', operation: '', key: '' })
+    })
+
+    it('clears the key when the kind changes', async () => {
+        // The key means a model name in one kind and a tool's class in the
+        // other, so it cannot carry over.
+        const wrapper = mountEditor()
+        await wrapper.find('[data-testid="usage-price-kind-0"]').setValue('tool')
+        expect(
+            wrapper.find<HTMLInputElement>('[data-testid="usage-price-key-0"]').element.value,
+        ).toBe('')
+    })
+
+    it('offers the tools of the installation, not the model the row carried', async () => {
+        // A model name left in the key of a tool row would be listed as if
+        // it were a tool.
+        const wrapper = mountEditor()
+        await wrapper.find('[data-testid="usage-price-kind-0"]').setValue('tool')
+        const options = wrapper
+            .findAll('[data-testid="usage-price-key-select-0"] option')
+            .map((option) => option.text())
+
+        expect(options).toContain('media')
+        expect(options).not.toContain('gpt-4o')
     })
 
     it('sends the provider the operator typed', async () => {

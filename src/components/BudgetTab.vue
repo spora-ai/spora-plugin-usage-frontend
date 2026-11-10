@@ -7,6 +7,7 @@ import { creditsPath, principalPath } from '../lib/usage-api'
 import { isForbidden, messageOf } from '../lib/errors'
 import { formatCredits } from '../lib/format'
 import { useUsageStore } from '../stores/usage'
+import PrincipalPicker from './PrincipalPicker.vue'
 
 const props = defineProps<{ hostContext: PluginHostContext; idPrefix: string }>()
 
@@ -16,10 +17,10 @@ const store = useUsageStore()
 const principalId = computed(() => store.selectedPrincipalId)
 
 /**
- * The scope's name, for the panel's own heading.
+ * The name of the principal the panel is scoped to, for its own heading.
  *
- * It comes from the scope dropdown's list, so the heading names the
- * principal before the panel's own read has answered.
+ * It comes from the picker's list, so the heading names the principal
+ * before the panel's own read has answered.
  */
 const scopeName = computed(() => store.selectedPrincipal?.name ?? null)
 
@@ -29,10 +30,10 @@ const detailName = ref<string | null>(null)
 /**
  * The name on the principal card.
  *
- * The panel's own read is the authority on who this is; the scope's name
+ * The panel's own read is the authority on who this is; the picker's name
  * is the fallback for the moment before the read has answered.
  */
-const principalName = computed(() => detailName.value ?? scopeName.value ?? null)
+const principalName = computed(() => detailName.value ?? scopeName.value)
 const balance = ref<number | null>(null)
 const amount = ref<number | null>(null)
 const note = ref('')
@@ -146,13 +147,18 @@ watch(
         <header class="flex flex-col gap-1">
             <h2 class="text-lg font-semibold">{{ t('Budget') }}</h2>
             <p class="text-sm text-muted-foreground">
-                <!-- The scope is named here as well as in the dropdown: this
+                <!-- The scope is named here as well as in the picker: this
                      panel is about one principal, and the operator should
                      not have to look up to know which one. -->
                 <span v-if="scopeName">{{ t('The credit balance of {name}, and the grants that moved it.', { name: scopeName }) }}</span>
                 <span v-else>{{ t('The credit balance of the selected principal, and the grants that moved it.') }}</span>
             </p>
         </header>
+
+        <!-- The picker is on top of the panel it scopes, so the principal
+             is named where its balance is edited. Its ids carry the tab's
+             name, because the Limits tab has a picker of its own. -->
+        <PrincipalPicker :host-context="hostContext" id-prefix="budget" />
 
         <div
             v-if="principalId === null"

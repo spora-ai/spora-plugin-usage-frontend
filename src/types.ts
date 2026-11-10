@@ -170,9 +170,39 @@ export interface UnpricedTool {
     calls: number
 }
 
+/**
+ * A model that had a price and was not billed.
+ *
+ * The principal ran it with their own provider key, so the installation
+ * did not pay for it.
+ */
+export interface NotBilledModel {
+    provider: string
+    model: string
+    calls: number
+    tokens: number
+}
+
+/** A tool that had a price and was not billed. */
+export interface NotBilledTool {
+    tool_class: string
+    tool_name: string
+    calls: number
+}
+
 export interface UsageUnpriced {
     models: UnpricedModel[]
     tools: UnpricedTool[]
+    /**
+     * The calls that had a price and were not charged.
+     *
+     * A different thing from an unpriced call: the price book had a row
+     * for it, and the principal paid for it themselves.
+     */
+    not_billed?: {
+        models: NotBilledModel[]
+        tools: NotBilledTool[]
+    }
 }
 
 /** The rows the server answers a limit save with. */

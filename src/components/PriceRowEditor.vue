@@ -131,6 +131,11 @@ function setKind(event: Event): void {
     const kind = (event.target as HTMLSelectElement).value as PriceKind
     draft.value.kind = kind
 
+    // The key means a model name in one kind and a tool's class in the
+    // other, so it cannot carry over: a model name left in the key of a
+    // tool row would be listed as if it were a tool.
+    draft.value.key = ''
+
     // The server refuses a provider on a tool price and an operation on a
     // model price, so the two columns that do not apply are cleared rather
     // than left to make the save fail.

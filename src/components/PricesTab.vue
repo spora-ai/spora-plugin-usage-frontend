@@ -104,27 +104,32 @@ const knownModels = computed<UsageKnownModel[]>(() => {
 /**
  * The tools the installation knows about.
  *
- * The book keys a tool on its class, and the unpriced report names it, so
- * the class is what the option carries and the wire name is the label.
+ * The book keys a tool on its class, and the class is what the price row
+ * carries. The label is the wire name the installation knows the tool by —
+ * `weather` rather than `Spora\Tools\WeatherTool` — because the class is
+ * an implementation detail. A tool the installation has no name for is
+ * labelled with its class, which is all the price row can say about it.
  */
 const knownTools = computed<UsageKnownTool[]>(() => {
-    const found = new Map<string, UsageKnownTool>()
+    const classes = new Map<string, string>()
 
     for (const price of prices.value) {
         if (price.kind !== 'tool' || price.key === '') {
             continue
         }
-        found.set(price.key, { tool_class: price.key, tool_name: price.key })
+        classes.set(price.key, price.key)
     }
 
+    // The unpriced report knows the wire name of every tool it has seen,
+    // and it knows it for the tools that have a price row as well: the
+    // name is the better label, so it wins over the class.
     for (const tool of unpriced.value.tools) {
-        found.set(tool.tool_class, {
-            tool_class: tool.tool_class,
-            tool_name: tool.tool_name,
-        })
+        classes.set(tool.tool_class, tool.tool_name)
     }
 
-    return [...found.values()].sort((a, b) => a.tool_name.localeCompare(b.tool_name))
+    return [...classes.entries()]
+        .map(([tool_class, tool_name]) => ({ tool_class, tool_name }))
+        .sort((a, b) => a.tool_name.localeCompare(b.tool_name))
 })
 
 /**

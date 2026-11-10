@@ -8,24 +8,26 @@ Pre-built Vue SPA for the Spora **Usage** app. Delivered as a Composer package o
 - Backend-only operators can `composer require spora-ai/spora-plugin-usage` without pulling in npm-buildable assets.
 - The bundle is independently testable in isolation (Vitest + the smoke script).
 
-## The four tabs, and the scope above them
+## The four tabs
 
 | Tab | Who | What it shows |
 | --- | --- | --- |
-| **Overview** | everyone | The caller's own principals: the credit balance, the limits with what is left of each window, and the spend over time. |
-| **Limits** | admin | The scoped principal's limit rows — the window, the unit, the cap, the mode, whether it is on — and the spend-to-date in each window. Editable. |
-| **Budget** | admin | The scoped principal's credit balance and a grant form. |
+| **Overview** | everyone | The caller's own principals: the credit balance, the limits with what is left of each window, and the spend over time. An admin also gets the install-wide face: what the installation spent, who spent it, which credit pools are empty, and which models and tools are used and cost nothing. |
+| **Limits** | admin | The picked principal's limit rows — the window, the unit, the cap, the mode, whether it is on — and the spend-to-date in each window. Editable. |
+| **Budget** | admin | The picked principal's credit balance and a grant form. |
 | **Prices** | admin | The price book, and the unpriced models and tools. |
 
-**The scope is a dropdown beside the tabs**, and it is what the Limits and Budget tabs are about. It lists every principal on the installation with its balance and its 30-day spend, so the scope is visible from every tab — never hidden behind a trip to another one.
+**The principal is picked inside the tabs that are about one.** The Limits and the Budget tab each carry a picker at the top, listing every principal on the installation with its balance and its 30-day spend. The picker is where the panel it scopes is, so the principal is never named on one tab and edited on another; the selection is shared, so switching from Limits to Budget keeps it.
 
-The dropdown is an **admin** control, because the tabs it scopes are admin tabs. A caller who cannot configure anything is not offered a dropdown that scopes nothing.
+The Overview is about nobody in particular: it is not affected by the selection, and an admin sees the whole installation there rather than a scoped principal.
+
+The picker is an **admin** control, because the tabs it scopes are admin tabs. A caller who cannot configure anything is not offered a picker that scopes nothing, and the admin listing is not requested for them — it would be refused.
 
 **The API is the gate.** The admin tabs hide themselves for a non-admin, but that is a courtesy: every admin route carries the admin middleware, and a 403 on an admin call sets the app's `adminDenied` flag, which hides the admin tabs and returns to Overview. A 403 is not retried.
 
 **A limit with no cap is a row that does not exist.** The editor adds and removes rows; there is no "cleared cap" state, because the backend's `cap` column is `NOT NULL` and a null would be a malformed request.
 
-**The price book offers what the installation knows.** The model and the tool of a price row are dropdowns, listing the models and the tools the install has used. Picking a model brings its provider with it, because the pair is the book's key. The free-text field stays beside the dropdown — a price for a model the installation has never used still has to be enterable.
+**The price book offers what the installation knows.** The model and the tool of a price row are dropdowns, listing the models and the tools the install has used — models for a model row, tools for a tool row, never the other kind. Picking a model brings its provider with it, because the pair is the book's key. The free-text field stays beside the dropdown — a price for a model the installation has never used still has to be enterable. Changing a row's kind clears its key: the key means a model name in one kind and a tool's class in the other, and it cannot carry over.
 
 ## The API
 
@@ -86,7 +88,7 @@ Against a host checkout, the host SPA proxies `/plugins/usage` to this server: s
 
 The IIFE wrapper installs this on `window.SporaAppUsage`; the host's `apps/registry.ts` reads `window.SporaAppUsage.mount` and `unmount` and calls them when `/apps/usage` is mounted and unmounted.
 
-The plugin installs a **local** Pinia for its own state — the open tab and the selected principal — so nothing lands in the host's stores. The host's own services (auth) are reached through the Pinia instance the host passes in `hostContext.pinia`.
+The plugin installs a **local** Pinia for its own state — the open tab, the selected principal and the principal listing — so nothing lands in the host's stores. The host's own services (auth) are reached through the Pinia instance the host passes in `hostContext.pinia`.
 
 **The host's auth store is read from a private field.** `src/lib/host-auth.ts` reads `pinia._s`, Pinia's internal store map, because the plugin cannot import the host's `useAuthStore` (separate bundles) and the host publishes no module for it. The host creates its auth store before it mounts the router — and so before any plugin mounts — so the store is there when the plugin asks; if it is not, the panel reads the caller as a non-admin and the admin tabs simply do not appear. The sibling `spora-plugin-social-frontend` reads the host's theme store the same way, so this is the family's established pattern; what would replace it is a host change that publishes the user on the plugin host context.
 

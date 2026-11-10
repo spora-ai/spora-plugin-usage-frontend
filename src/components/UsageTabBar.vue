@@ -22,9 +22,9 @@ const { t } = useI18n()
  * them rather than offering a tab whose every call would be refused with a
  * 403.
  *
- * A segmented control rather than an underlined tab strip: the scope
- * dropdown sits beside it in the same row, and a row of underlined tabs
- * under a dropdown reads as two unrelated things.
+ * A segmented control rather than an underlined tab strip: the row it
+ * sits in is the panel's own toolbar, and an underlined strip reads as a
+ * navigation of the host's page rather than as a switch inside the panel.
  */
 const tabs = computed<{ id: UsageTab; label: string }[]>(() => {
     const visible: { id: UsageTab; label: string }[] = [{ id: 'overview', label: t('Overview') }]

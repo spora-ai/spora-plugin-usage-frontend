@@ -13,6 +13,7 @@ import { isForbidden, messageOf } from '../lib/errors'
 import { formatCredits, formatTokens } from '../lib/format'
 import { useUsageStore } from '../stores/usage'
 import LimitRowEditor from './LimitRowEditor.vue'
+import PrincipalPicker from './PrincipalPicker.vue'
 
 const props = defineProps<{ hostContext: PluginHostContext; idPrefix: string }>()
 
@@ -30,10 +31,10 @@ const saved = ref(false)
 const principalId = computed(() => store.selectedPrincipalId)
 
 /**
- * The scope's name, for the panel's own heading.
+ * The name of the principal the panel is scoped to, for its own heading.
  *
- * It comes from the scope dropdown's list, so the heading names the
- * principal before the panel's own read has answered.
+ * It comes from the picker's list, so the heading names the principal
+ * before the panel's own read has answered.
  */
 const scopeName = computed(() => store.selectedPrincipal?.name ?? null)
 
@@ -150,13 +151,18 @@ watch(
         <header class="flex flex-col gap-1">
             <h2 class="text-lg font-semibold">{{ t('Limits') }}</h2>
             <p class="text-sm text-muted-foreground">
-                <!-- The scope is named here as well as in the dropdown: this
+                <!-- The scope is named here as well as in the picker: this
                      panel is about one principal, and the operator should
                      not have to look up to know which one. -->
                 <span v-if="scopeName">{{ t('The limits of {name}, and what each window has spent so far.', { name: scopeName }) }}</span>
                 <span v-else>{{ t('The limits of the selected principal, and what each window has spent so far.') }}</span>
             </p>
         </header>
+
+        <!-- The picker is on top of the panel it scopes, so the principal
+             is named where its limits are edited. Its ids carry the tab's
+             name, because the Budget tab has a picker of its own. -->
+        <PrincipalPicker :host-context="hostContext" id-prefix="limits" />
 
         <div
             v-if="principalId === null"

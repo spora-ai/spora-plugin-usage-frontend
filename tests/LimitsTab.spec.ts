@@ -23,10 +23,18 @@ const detailResponse = {
     spend: { credits_30d: 1234.5, total_tokens_30d: 340000 },
 }
 
+const listingResponse = {
+    principals: [
+        { id: 12, type: 'user', name: 'Ada Lovelace', balance: 250.5, spend_30d: 1234.5 },
+    ],
+}
+
 function mountTab(options: HostOptions = {}, selectedPrincipalId: number | null = 12) {
     const host = buildHost({
+        isAdmin: true,
         ...options,
         get: {
+            '/usage/principals': () => listingResponse,
             '/usage/principals/12': () => detailResponse,
             ...options.get,
         },
@@ -52,7 +60,37 @@ describe('LimitsTab', () => {
         const { wrapper, host } = mountTab({}, null)
         await flushPromises()
         expect(wrapper.find('[data-testid="usage-limits-no-principal"]').exists()).toBe(true)
-        expect(host.api.get).not.toHaveBeenCalled()
+        expect(host.api.get).not.toHaveBeenCalledWith('/usage/principals/12')
+    })
+
+    it('puts the principal picker on top of the panel it scopes', async () => {
+        const { wrapper } = mountTab()
+        await flushPromises()
+        expect(wrapper.find('[data-testid="usage-principal-picker"]').exists()).toBe(true)
+        expect(wrapper.find('[data-testid="limits-principal-toggle"]').exists()).toBe(true)
+    })
+
+    it('names the principal in its heading before its own read answers', async () => {
+        const { wrapper } = mountTab({
+            get: { '/usage/principals/12': () => new Promise(() => {}) },
+        })
+        await flushPromises()
+        await flushPromises()
+        // The name comes from the picker's listing, so the heading is
+        // never about an unnamed principal.
+        expect(wrapper.text()).toContain('The limits of Ada Lovelace')
+    })
+
+    it('shows the id when the server names nobody', async () => {
+        const { wrapper } = mountTab({
+            get: {
+                '/usage/principals': () => ({ principals: [] }),
+                '/usage/principals/12': () => ({ ...detailResponse, principal: { id: 12 } }),
+            },
+        })
+        await flushPromises()
+        await flushPromises()
+        expect(wrapper.find('[data-testid="usage-limits-principal"]').text()).toContain('#12')
     })
 
     it('loads the limits of the selected principal', async () => {

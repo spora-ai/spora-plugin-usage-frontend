@@ -363,6 +363,125 @@ describe('PricesTab', () => {
         expect(options).toContain('weather')
     })
 
+    it('labels a tool by the name the installation knows it by', async () => {
+        // The book keys a tool on its class, but the class is an
+        // implementation detail: the name the installation knows the tool
+        // by is the better label.
+        const { wrapper } = mountTab({
+            get: {
+                '/usage/prices': () => ({
+                    prices: [
+                        {
+                            kind: 'tool',
+                            provider: '',
+                            key: 'Spora\\Tools\\WeatherTool',
+                            operation: '',
+                            input_price: 0,
+                            output_price: 0,
+                            cached_price: 0,
+                            call_price: 0.25,
+                        },
+                    ],
+                }),
+                '/usage/unpriced': () => ({
+                    models: [],
+                    tools: [
+                        {
+                            tool_class: 'Spora\\Tools\\WeatherTool',
+                            tool_name: 'weather',
+                            calls: 4,
+                        },
+                    ],
+                }),
+            },
+        })
+        await flushPromises()
+        await flushPromises()
+
+        const options = modelOptions(wrapper)
+        expect(options).toContain('weather')
+        expect(options).not.toContain('Spora\\Tools\\WeatherTool')
+    })
+
+    it('labels a tool the installation has no name for by its class', async () => {
+        const { wrapper } = mountTab({
+            get: {
+                '/usage/prices': () => ({
+                    prices: [
+                        {
+                            kind: 'tool',
+                            provider: '',
+                            key: 'Spora\\Tools\\MediaTool',
+                            operation: '',
+                            input_price: 0,
+                            output_price: 0,
+                            cached_price: 0,
+                            call_price: 0.25,
+                        },
+                    ],
+                }),
+                '/usage/unpriced': () => ({ models: [], tools: [] }),
+            },
+        })
+        await flushPromises()
+        await flushPromises()
+
+        expect(modelOptions(wrapper)).toContain('Spora\\Tools\\MediaTool')
+    })
+
+    it('sorts the tools by the label they are shown with', async () => {
+        const { wrapper } = mountTab({
+            get: {
+                '/usage/prices': () => ({
+                    prices: [
+                        {
+                            kind: 'tool',
+                            provider: '',
+                            key: 'Spora\\Tools\\ZebraTool',
+                            operation: '',
+                            input_price: 0,
+                            output_price: 0,
+                            cached_price: 0,
+                            call_price: 1,
+                        },
+                        {
+                            kind: 'tool',
+                            provider: '',
+                            key: 'Spora\\Tools\\AlphaTool',
+                            operation: '',
+                            input_price: 0,
+                            output_price: 0,
+                            cached_price: 0,
+                            call_price: 1,
+                        },
+                    ],
+                }),
+                '/usage/unpriced': () => ({ models: [], tools: [] }),
+            },
+        })
+        await flushPromises()
+        await flushPromises()
+
+        expect(modelOptions(wrapper)).toEqual([
+            'Spora\\Tools\\AlphaTool',
+            'Spora\\Tools\\ZebraTool',
+            'Other…',
+        ])
+    })
+
+    it('does not offer a model as a tool', async () => {
+        const { wrapper } = mountTab()
+        await flushPromises()
+        await flushPromises()
+
+        await wrapper.find('[data-testid="usage-price-kind-0"]').setValue('tool')
+        await flushPromises()
+
+        const options = modelOptions(wrapper)
+        expect(options).not.toContain('openai_compatible / gpt-4o')
+        expect(options).not.toContain('openai_compatible / internal-preview')
+    })
+
     it('does not offer an unfinished row as a model the installation knows', async () => {
         // A row the operator has not filled in has no key, and it is not
         // a model: offering it would put an empty entry in the list.
