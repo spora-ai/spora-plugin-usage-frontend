@@ -1,0 +1,51 @@
+# CodeRabbit configuration for spora-plugin-usage-frontend.
+#
+# The repository's comment policy is the single source of truth for comments:
+# https://docs.spora-ai.com/reference/concepts/code-documentation.html
+#
+# `inheritance: true` keeps the organization's settings. It is off by default,
+# and a repository file without it replaces the organization configuration
+# instead of overriding single keys in it.
+inheritance: true
+
+reviews:
+  # The docstring-coverage check counts the *presence* of a docblock on every
+  # function it flags, so it rewards exactly the restating docblocks the
+  # comment policy deletes. The policy governs; the check would only argue
+  # with it.
+  pre_merge_checks:
+    docstrings:
+      mode: "off"
+
+  # The generator carries the same bias — a docblock on every changed
+  # function, whether it earns its place or not.
+  finishing_touches:
+    docstrings:
+      enabled: false
+
+  path_instructions:
+    - path: "src/**/*.{ts,vue}"
+      instructions: |
+        Judge comments by the repository's comment policy
+        (https://docs.spora-ai.com/reference/concepts/code-documentation.html).
+
+        A comment earns its place only when it says WHY: a security
+        rationale, a non-obvious rule, an API contract, or an architectural
+        invariant.
+
+        Do not ask for a docblock where the code needs none. Do not ask for a
+        comment that restates the code below it, or that repeats what the
+        name already says. Report a comment as drift only when it claims
+        something the code does not do.
+
+    - path: "src/**/*.{ts,vue}"
+      instructions: |
+        Every operator-facing string goes through `t()`. The panel ships one
+        language, and an unwrapped string is a string the operator reads in
+        English. `npm run i18n:check` fails the build on one — in a template
+        or in a module — so do not suggest inlining one.
+
+        The Tailwind utilities are scoped beneath `#spora-plugin-usage`, and
+        the bundle ships no preflight: the `--tw-translate-x` variables are
+        missing, so `translate-*`, `rotate-*` and `scale-*` silently do
+        nothing. Do not suggest them.

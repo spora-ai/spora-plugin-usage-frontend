@@ -1,5 +1,5 @@
 /**
- * The Media Archive SPA is mounted into a slot owned by the host's
+ * The Usage app is mounted into a slot owned by the host's
  * `PluginAppPage.vue`. The host passes a deliberately small context:
  *   - `api`       — the host's typed REST client. We use it directly rather
  *                   than rebuilding a copy so request/response shapes stay
@@ -27,9 +27,8 @@ export interface PluginHostContext {
      * The host's `spora-frontend/src/api/client.ts → request<T>()` unwraps
      * the standard `{ data: T }` envelope before handing the value to the
      * caller (`body.data ?? body`). Plugins receive `T` directly — for the
-     * Media Archive list endpoint that's the flat
-     * `{ assets, page, perPage, total, lastPage }` shape, not a further
-     * envelope.
+     * Usage endpoints that's the flat `{ principals, limits, balance }` shape,
+     * not a further envelope.
      */
     api: {
         get: <T = unknown>(path: string) => Promise<T>
@@ -37,12 +36,20 @@ export interface PluginHostContext {
         /**
          * Multipart upload helper. Sends a `FormData` payload with the
          * correct `multipart/form-data` boundary and skips the
-         * JSON-body Content-Type the regular `post()` would set. The
-         * Media Archive plugin uses it for the principal-first
-         * upload flow (see `MediaUploadDialog.vue`).
+         * JSON-body Content-Type the regular `post()` would set.
+         *
+         * The Usage plugin does not upload files; the method is declared
+         * here because the host's client has it and every plugin's shim
+         * mirrors the same surface.
          */
         postForm: <T = unknown>(path: string, body: FormData) => Promise<T>
         patch: <T = unknown>(path: string, body: unknown) => Promise<T>
+        /**
+         * The Usage contract writes its limits, its credits and its price
+         * book as PUT, so the method is part of the surface the plugin
+         * reads rather than something it reaches around the shim for.
+         */
+        put: <T = unknown>(path: string, body: unknown) => Promise<T>
         delete: <T = unknown>(path: string) => Promise<T>
     }
     pinia: unknown

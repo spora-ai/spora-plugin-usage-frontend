@@ -1,0 +1,247 @@
+/**
+ * The wire shapes of the Usage API.
+ *
+ * The host's typed client unwraps the `{ data: T }` envelope, so a response
+ * type here is the *inner* shape and nothing more — there is no `body.data`
+ * to unwrap on the plugin side.
+ */
+
+export type PrincipalType = 'user' | 'group'
+
+export type LimitWindow = 'hour' | 'day' | 'week' | 'month' | 'rolling' | 'total'
+
+export type LimitUnit = 'credits' | 'total_tokens' | 'output_tokens' | 'llm_calls' | 'tool_calls'
+
+export type LimitMode = 'hard' | 'soft'
+
+export type PriceKind = 'model' | 'tool'
+
+export type SeriesWindow = 'day' | 'week' | 'month'
+
+export type UsageTab = 'overview' | 'limits' | 'defaults' | 'budget' | 'prices'
+
+/**
+ * The fields of a limit row that the server stores.
+ *
+ * The body of `PUT /usage/principals/{id}/limits` is a list of these: the
+ * server replaces the whole set, so the payload carries every limit and
+ * nothing else — the spend figures the server computed are not the
+ * client's to send back.
+ *
+ * `cap` is a number and never a null: the server's column is
+ * `DECIMAL(20,8) NOT NULL` and a null cap in the payload is a 400. A limit
+ * without a cap is a limit that is not there — the row leaves the payload
+ * instead of losing its number.
+ */
+export interface UsageLimitRow {
+    window: LimitWindow
+    /** Hours. Only the `rolling` window reads it. */
+    window_size: number
+    unit: LimitUnit
+    cap: number
+    mode: LimitMode
+    enabled: boolean
+}
+
+/**
+ * One limit row as the server reports it.
+ *
+ * `spend` and `remaining` are the server's own figures: `remaining` is the
+ * cap minus the spend, and it goes negative when a window overshoots its
+ * cap — the size of the overshoot is what the number is for.
+ */
+export interface UsageLimit extends UsageLimitRow {
+    spend: number
+    remaining: number
+}
+
+/**
+ * One limit row as the editor holds it.
+ *
+ * The figures are the ones the server last reported, and they are null for
+ * a row the server has not seen: the server computes the spend per window,
+ * not per row, so a row the operator has just added carries no figure until
+ * the save comes back.
+ */
+export interface UsageLimitDraft extends UsageLimitRow {
+    spend: number | null
+    remaining: number | null
+}
+
+/**
+ * The scope of a default limit set.
+ *
+ * `all` is the set every principal falls back to; `user` and `group` are
+ * the sets for the principals of a user and of a group. A type's own set
+ * replaces the general one rather than adding to it.
+ */
+export type DefaultLimitScope = 'all' | 'user' | 'group'
+
+/**
+ * The default limit sets, one per scope.
+ *
+ * A set holds limit rows of the same shape the principal's own rows have,
+ * but without the figures: the server computes the spend per window and
+ * per principal, and a default governs principals nobody configured, so
+ * there is no spend of its own to report.
+ */
+export interface UsageDefaultLimits {
+    all: UsageLimitRow[]
+    user: UsageLimitRow[]
+    group: UsageLimitRow[]
+}
+
+/** The rows the server answers a default save with. */
+export interface UsageDefaultsResponse {
+    defaults: UsageDefaultLimits
+}
+
+/** A principal as the caller's own overview sees it. */
+export interface UsagePrincipal {
+    id: number
+    type: PrincipalType
+    name: string
+    balance: number | null
+    limits: UsageLimit[]
+}
+
+/** A principal as the admin listing sees it: no limits, a 30-day spend. */
+export interface UsagePrincipalSummary {
+    id: number
+    type: PrincipalType
+    name: string
+    balance: number | null
+    spend_30d: number
+}
+
+export interface UsagePrincipalRef {
+    id: number
+    type: PrincipalType
+    name: string
+}
+
+export interface UsageSpend {
+    credits_30d: number
+    total_tokens_30d: number
+}
+
+/** Everything the admin tabs need about one principal. */
+export interface UsagePrincipalDetail {
+    principal: UsagePrincipalRef
+    balance: number | null
+    limits: UsageLimit[]
+    spend: UsageSpend
+}
+
+export interface UsageSeriesPoint {
+    at: string
+    credits: number
+    total_tokens: number
+    output_tokens: number
+    llm_calls: number
+    tool_calls: number
+}
+
+export interface UsageSeries {
+    window: SeriesWindow
+    points: UsageSeriesPoint[]
+}
+
+/** One row of the price book. */
+export interface UsagePrice {
+    kind: PriceKind
+    /** Empty means "any provider". */
+    provider: string
+    /** The model name, or the tool's class FQCN. */
+    key: string
+    /** Empty means "any operation"; tools only. */
+    operation: string
+    input_price: number
+    output_price: number
+    cached_price: number
+    call_price: number
+}
+
+/**
+ * A model the installation knows about.
+ *
+ * The pair is the model's identity — the price book keys it on the
+ * provider *and* the name — so both travel together.
+ */
+export interface UsageKnownModel {
+    provider: string
+    model: string
+}
+
+/**
+ * A tool the installation knows about.
+ *
+ * The class is the tool's identity: the wire name changes between plugin
+ * releases and the class does not.
+ */
+export interface UsageKnownTool {
+    tool_class: string
+    tool_name: string
+}
+
+/** A model that was used and has no price row: it cost nothing, silently. */
+export interface UnpricedModel {
+    provider: string
+    model: string
+    calls: number
+}
+
+/** A tool that was used and has no price row. */
+export interface UnpricedTool {
+    tool_class: string
+    tool_name: string
+    calls: number
+}
+
+/**
+ * A model that had a price and was not billed.
+ *
+ * The principal ran it with their own provider key, so the installation
+ * did not pay for it.
+ */
+export interface NotBilledModel {
+    provider: string
+    model: string
+    calls: number
+    tokens: number
+}
+
+/** A tool that had a price and was not billed. */
+export interface NotBilledTool {
+    tool_class: string
+    tool_name: string
+    calls: number
+}
+
+export interface UsageUnpriced {
+    models: UnpricedModel[]
+    tools: UnpricedTool[]
+    /**
+     * The calls that had a price and were not charged.
+     *
+     * A different thing from an unpriced call: the price book had a row
+     * for it, and the principal paid for it themselves.
+     */
+    not_billed?: {
+        models: NotBilledModel[]
+        tools: NotBilledTool[]
+    }
+}
+
+/** The rows the server answers a limit save with. */
+export interface UsageLimitsResponse {
+    limits: UsageLimitRow[]
+}
+
+export interface UsageBalanceResponse {
+    balance: number | null
+}
+
+export interface UsagePricesResponse {
+    prices: UsagePrice[]
+}

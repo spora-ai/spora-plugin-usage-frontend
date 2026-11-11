@@ -2,7 +2,7 @@ import type { Config } from 'tailwindcss'
 import { fontFamily } from 'tailwindcss/defaultTheme'
 
 /**
- * Tailwind config for the Media Archive plugin frontend.
+ * Tailwind config for the Usage plugin frontend.
  *
  * The theme tokens (colours, font sizes, border radius) intentionally
  * mirror the host SPA's `tailwind.config.ts` so plugins render with the
